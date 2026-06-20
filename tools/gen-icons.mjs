@@ -6,20 +6,22 @@
 import zlib from "node:zlib";
 import { writeFileSync } from "node:fs";
 
-const BG = "#12161e", BAR = "#e7eaf0", PLATE = "#ff5d3b";
+const GRAD_FROM = "#ff8a4d", GRAD_TO = "#ff4136"; // яркий оранжево-красный градиент фона
+const PART = "#ffffff";                            // штанга белая
 const SS = 4; // суперсэмплинг для сглаживания краёв
 
 // Фигуры в системе координат 512×512 (как в icon.svg). Порядок = порядок отрисовки.
 const SHAPES = [
-  { c: BG,    x: 0,   y: 0,   w: 512, h: 512, r: 112 },
-  { c: BAR,   x: 150, y: 236, w: 212, h: 40,  r: 20  },
-  { c: PLATE, x: 92,  y: 176, w: 34,  h: 160, r: 10  },
-  { c: PLATE, x: 138, y: 146, w: 40,  h: 220, r: 12  },
-  { c: PLATE, x: 334, y: 146, w: 40,  h: 220, r: 12  },
-  { c: PLATE, x: 386, y: 176, w: 34,  h: 160, r: 10  },
+  { grad: true, x: 0,   y: 0,   w: 512, h: 512, r: 112 },
+  { c: PART,    x: 150, y: 236, w: 212, h: 40,  r: 20  },
+  { c: PART,    x: 92,  y: 176, w: 34,  h: 160, r: 10  },
+  { c: PART,    x: 138, y: 146, w: 40,  h: 220, r: 12  },
+  { c: PART,    x: 334, y: 146, w: 40,  h: 220, r: 12  },
+  { c: PART,    x: 386, y: 176, w: 34,  h: 160, r: 10  },
 ];
 
 const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const GF = hex(GRAD_FROM), GT = hex(GRAD_TO);
 
 // Точка внутри прямоугольника со скруглёнными углами?
 function inRoundRect(px, py, x, y, w, h, r) {
@@ -36,13 +38,22 @@ function renderRGBA(size) {
   const big = new Uint8Array(S * S * 4);        // прозрачный фон по умолчанию
 
   for (const sh of SHAPES) {
-    const [r, g, b] = hex(sh.c);
+    const solid = sh.c ? hex(sh.c) : null;
     const x = sh.x * k, y = sh.y * k, w = sh.w * k, h = sh.h * k, rad = sh.r * k;
     const x0 = Math.max(0, Math.floor(x)), x1 = Math.min(S - 1, Math.ceil(x + w));
     const y0 = Math.max(0, Math.floor(y)), y1 = Math.min(S - 1, Math.ceil(y + h));
     for (let py = y0; py <= y1; py++) {
       for (let px = x0; px <= x1; px++) {
         if (inRoundRect(px + 0.5, py + 0.5, x, y, w, h, rad)) {
+          let r, g, b;
+          if (sh.grad) {                         // диагональный градиент top-left → bottom-right
+            const t = Math.min(1, Math.max(0, (px + py) / (2 * S)));
+            r = Math.round(GF[0] + (GT[0] - GF[0]) * t);
+            g = Math.round(GF[1] + (GT[1] - GF[1]) * t);
+            b = Math.round(GF[2] + (GT[2] - GF[2]) * t);
+          } else {
+            r = solid[0]; g = solid[1]; b = solid[2];
+          }
           const i = (py * S + px) * 4;
           big[i] = r; big[i + 1] = g; big[i + 2] = b; big[i + 3] = 255;
         }
