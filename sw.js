@@ -1,6 +1,6 @@
 /* Service worker: офлайн-кэш «оболочки» приложения.
    При изменении файлов поднимите версию в CACHE — старый кэш очистится. */
-const CACHE = "pct-v4";
+const CACHE = "pct-v5";
 const ASSETS = [
   ".",
   "index.html",
@@ -9,6 +9,7 @@ const ASSETS = [
   "icon-192.png",
   "icon-512.png",
   "icon-180.png",
+  "qr.svg",
 ];
 
 self.addEventListener("install", (e) => {

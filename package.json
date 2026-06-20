@@ -1,0 +1,20 @@
+{
+  "name": "calculator-vesov",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA-калькулятор процентовки (присед/жим/становая): ввод 1ПМ → таблицы 40–105%, суммы и цель цикла.",
+  "scripts": {
+    "icons": "node tools/gen-icons.mjs",
+    "qr": "node tools/gen-qr.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bablakov/calculator-vesov.git"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "homepage": "https://bablakov.github.io/calculator-vesov/",
+  "devDependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

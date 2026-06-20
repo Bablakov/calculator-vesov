@@ -120,6 +120,18 @@
     .hbtn{padding:7px 12px; font-size:.85rem; background:var(--panel2); border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer}
     .hbtn--del{padding:7px 11px; color:var(--muted)}
 
+    /* Поделиться / QR */
+    .share__card{
+      display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+      background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px;
+    }
+    .share__qr{width:180px; height:180px; flex-shrink:0; display:block; background:#fff; border-radius:10px; padding:8px}
+    .share__info{display:flex; flex-direction:column; gap:10px; min-width:200px; flex:1}
+    .share__hint{margin:0; color:var(--muted); font-size:.9rem}
+    .share__url{color:var(--text); font-weight:600; word-break:break-all; text-decoration:none}
+    .share__url:hover{text-decoration:underline}
+    .share__actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:2px}
+
     /* Диалог установки */
     .dlg{border:1px solid var(--border); border-radius:16px; background:var(--panel); color:var(--text); max-width:340px; padding:20px}
     .dlg::backdrop{background:rgba(0,0,0,.6)}
@@ -162,6 +174,21 @@
   <section aria-label="История">
     <h2 class="section-title">История</h2>
     <div id="history"></div>
+  </section>
+
+  <section class="share" aria-label="Поделиться">
+    <h2 class="section-title">Поделиться</h2>
+    <div class="share__card">
+      <img class="share__qr" src="qr.svg" width="180" height="180" alt="QR-код на приложение" loading="lazy">
+      <div class="share__info">
+        <p class="share__hint">Наведите камеру телефона на код — откроется это приложение.</p>
+        <a class="share__url" id="appUrl" href="https://bablakov.github.io/calculator-vesov/" target="_blank" rel="noopener">bablakov.github.io/calculator-vesov</a>
+        <div class="share__actions">
+          <button id="copyLink">Скопировать ссылку</button>
+          <button id="shareLink" hidden>Поделиться…</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <dialog id="installHelp" class="dlg">
@@ -378,6 +405,22 @@
       inputs[LIFTS[0].key].focus();
     });
 
+    /* ───── Поделиться: копировать ссылку / системный «Поделиться» ───── */
+    const APP_URL = document.getElementById("appUrl").href;
+    const copyBtn = document.getElementById("copyLink");
+    copyBtn.addEventListener("click", async function(){
+      try { await navigator.clipboard.writeText(APP_URL); copyBtn.textContent = "Скопировано ✓"; }
+      catch (e) { copyBtn.textContent = "Скопируйте вручную"; }
+      setTimeout(function(){ copyBtn.textContent = "Скопировать ссылку"; }, 1800);
+    });
+    const shareBtn = document.getElementById("shareLink");
+    if (navigator.share){               // системный лист «Поделиться» (телефоны)
+      shareBtn.hidden = false;
+      shareBtn.addEventListener("click", function(){
+        navigator.share({ title: "Калькулятор процентовки", url: APP_URL }).catch(function(){});
+      });
+    }
+
     /* ───── Установка на главный экран ───── */
     const installBtn  = document.getElementById("install");
     const installHelp = document.getElementById("installHelp");
@@ -422,10 +465,25 @@
     recalc();
     renderHistory();
 
-    // Service worker — только по http(s) (на localhost и GitHub Pages).
+    // Service worker + авто-обновление (только по http(s): localhost и GitHub Pages).
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")){
+      // Если страница уже под управлением SW (не первый визит) — при активации
+      // новой версии тихо перезагрузимся. Данные не теряются: они в localStorage.
+      if (navigator.serviceWorker.controller){
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function(){
+          if (reloaded) return;
+          reloaded = true;
+          window.location.reload();
+        });
+      }
       window.addEventListener("load", function(){
-        navigator.serviceWorker.register("sw.js").catch(function(){});
+        navigator.serviceWorker.register("sw.js").then(function(reg){
+          reg.update().catch(function(){});                     // проверить обновление при запуске
+          document.addEventListener("visibilitychange", function(){ // и при возврате к приложению
+            if (document.visibilityState === "visible") reg.update().catch(function(){});
+          });
+        }).catch(function(){});
       });
     }
   </script>

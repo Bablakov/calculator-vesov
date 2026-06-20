@@ -8,6 +8,10 @@ desktop.ini
 .idea/
 *.swp
 
+# Node (qr.svg генерируется dev-зависимостью qrcode; в рантайме не нужна)
+node_modules/
+
 # Logs / temp
 *.log
 *.tmp
+qr-preview.png
