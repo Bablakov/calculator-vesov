@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Штанга">
+  <rect width="512" height="512" rx="112" fill="#12161e"/>
+  <rect x="150" y="236" width="212" height="40" rx="20" fill="#e7eaf0"/>
+  <g fill="#ff5d3b">
+    <rect x="92"  y="176" width="34" height="160" rx="10"/>
+    <rect x="138" y="146" width="40" height="220" rx="12"/>
+    <rect x="334" y="146" width="40" height="220" rx="12"/>
+    <rect x="386" y="176" width="34" height="160" rx="10"/>
+  </g>
+</svg>
