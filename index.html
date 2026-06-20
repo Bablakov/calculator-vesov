@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <meta name="description" content="Калькулятор процентовки: вводите одноповторный максимум (присед, жим, становая) — получаете рабочие веса и целевую сумму.">
-  <title>Калькулятор процентовки</title>
+  <meta name="description" content="Пауэрлифтинг: калькулятор процентовки (присед, жим, становая) и умный 4-недельный тренировочный цикл с дневником.">
+  <title>Процентовка и цикл</title>
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
@@ -15,181 +15,76 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Процентовка">
 
-  <style>
-    :root{
-      --bg:#0e1116; --panel:#161b24; --panel2:#1b2230; --border:#252c3a;
-      --text:#e7eaf0; --muted:#97a0b0; --accent:#ff5d3b; --target:#f7c948; --radius:16px;
-      --gap:clamp(8px, 1.4vw, 14px);
-    }
-    *{box-sizing:border-box}
-    html{ -webkit-text-size-adjust:100% }
-    body{
-      margin:0 auto; max-width:1400px;
-      padding:max(14px,env(safe-area-inset-top)) clamp(10px,3vw,28px) calc(24px + env(safe-area-inset-bottom));
-      background:var(--bg); color:var(--text); line-height:1.4;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
-    }
-    header{margin:6px 0 16px}
-    h1{font-size:clamp(1.25rem,3.2vw,1.6rem); margin:0 0 4px; letter-spacing:-.02em}
-    .sub{color:var(--muted); font-size:clamp(.8rem,2vw,.95rem); margin:0}
-    .section-title{font-size:1.1rem; margin:26px 0 12px}
-    .muted{color:var(--muted); font-size:.9rem}
-
-    /* Поля ввода 1ПМ — 3 колонки в один ряд, столбик над своей таблицей */
-    .inputs{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--gap)}
-    .field{
-      display:flex; flex-direction:column; gap:5px; padding:clamp(9px,1.4vw,13px) clamp(10px,1.4vw,14px);
-      background:var(--panel); border:1px solid var(--border);
-      border-top:3px solid var(--accent); border-radius:var(--radius); min-width:0;
-    }
-    .field__name{font-size:clamp(.62rem,1.7vw,.78rem); color:var(--muted); text-transform:uppercase; letter-spacing:.03em; line-height:1.2}
-    .field__row{display:flex; align-items:baseline; gap:6px}
-    .field input{
-      width:100%; min-width:0; padding:0; border:0; outline:none; background:transparent;
-      color:var(--text); font:700 clamp(1.15rem,4.4vw,2rem)/1 inherit; font-variant-numeric:tabular-nums;
-    }
-    .field input::placeholder{color:#3a4252}
-    .field input::-webkit-outer-spin-button,
-    .field input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0 }
-    .field input{ -moz-appearance:textfield }
-    .field__unit{color:var(--muted); font-weight:600; font-size:clamp(.72rem,1.8vw,1rem)}
-
-    /* Суммы: текущая и целевая (105%) */
-    .totals{display:grid; grid-template-columns:1fr 1fr; gap:var(--gap); margin:14px 0 4px}
-    .stat{
-      display:flex; flex-direction:column; gap:4px; padding:clamp(10px,1.4vw,14px) clamp(12px,1.6vw,16px);
-      background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-    }
-    .stat__label{font-size:clamp(.66rem,1.7vw,.74rem); text-transform:uppercase; letter-spacing:.04em; color:var(--muted)}
-    .stat__value{font-size:clamp(1.25rem,3.4vw,1.5rem); font-weight:800; font-variant-numeric:tabular-nums}
-    .stat--target{border-top:3px solid var(--target)}
-    .stat--target .stat__value{color:var(--target)}
-
-    .note{color:var(--muted); font-size:.8rem; margin:12px 2px 16px}
-
-    .toolbar{display:flex; gap:10px; margin:0 0 18px; flex-wrap:wrap}
-    button{
-      font:600 1rem/1 inherit; color:var(--text); background:var(--panel2);
-      border:1px solid var(--border); border-radius:10px; padding:11px 18px; cursor:pointer;
-    }
-    button:active{transform:translateY(1px)}
-    button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a}
-
-    /* Таблицы процентовки — всегда 3 в один ряд, на всю ширину */
-    .tables{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--gap); align-items:start}
-    .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; min-width:0}
-    .card__title{
-      margin:0; padding:clamp(9px,1.4vw,12px) clamp(8px,1.5vw,16px); font-size:clamp(.82rem,2.3vw,1.05rem);
-      border-bottom:1px solid var(--border); border-left:4px solid var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .tbl{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; table-layout:fixed}
-    .tbl th{
-      padding:7px clamp(7px,1.3vw,16px); text-align:left; font-size:clamp(.64rem,1.5vw,.72rem); font-weight:600;
-      text-transform:uppercase; letter-spacing:.04em; color:var(--muted);
-    }
-    .tbl td{padding:clamp(7px,1vw,9px) clamp(7px,1.3vw,16px); border-top:1px solid var(--border)}
-    .tbl .pct{width:42%; font-size:clamp(.78rem,2vw,.95rem)}
-    .tbl .val{font-weight:700; font-size:clamp(.86rem,2.2vw,1.05rem); text-align:right}
-
-    /* Зебра по «нулям» и «пятёркам» — для удобной навигации по списку */
-    .tbl tr.dec0{background:rgba(255,255,255,.035)}
-    .tbl tr.dec0 .pct{color:#c2cad6}
-    .tbl tr.dec5{background:rgba(0,0,0,.22)}
-    .tbl tr.dec5 .pct{color:#828b99}
-    .tbl tr.dec5 .val{color:#aeb6c2}
-    /* 100% — рабочий максимум (цвет упражнения) */
-    .tbl tr.is-max{background:color-mix(in srgb, var(--accent) 16%, transparent)}
-    .tbl tr.is-max .pct,
-    .tbl tr.is-max .val{color:var(--accent)}
-    /* 105% — цель/над-максимум, отдельный золотой цвет */
-    .tbl tr.is-target{background:color-mix(in srgb, var(--target) 20%, transparent)}
-    .tbl tr.is-target .pct,
-    .tbl tr.is-target .val{color:var(--target); font-weight:800}
-
-    /* История */
-    .hrow{
-      display:flex; align-items:center; gap:10px; justify-content:space-between;
-      background:var(--panel); border:1px solid var(--border); border-radius:12px;
-      padding:10px 14px; margin-bottom:8px;
-    }
-    .hrow__top{display:flex; gap:12px; align-items:baseline; flex-wrap:wrap}
-    .hrow__date{font-size:.8rem; color:var(--muted)}
-    .hrow__total{font-weight:700}
-    .hrow__parts{font-size:.85rem; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums}
-    .hrow__actions{display:flex; gap:6px; flex-shrink:0}
-    .hbtn{padding:7px 12px; font-size:.85rem; background:var(--panel2); border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer}
-    .hbtn--del{padding:7px 11px; color:var(--muted)}
-
-    /* Поделиться / QR — по центру */
-    .share__card{
-      display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px;
-      background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px;
-    }
-    .share__qr{width:180px; height:180px; flex-shrink:0; display:block; background:#fff; border-radius:10px; padding:8px}
-    .share__info{display:flex; flex-direction:column; gap:10px; align-items:center}
-    .share__hint{margin:0; color:var(--muted); font-size:.9rem}
-    .share__url{color:var(--text); font-weight:600; word-break:break-all; text-decoration:none}
-    .share__url:hover{text-decoration:underline}
-    .share__actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:2px}
-
-    /* Диалог установки */
-    .dlg{border:1px solid var(--border); border-radius:16px; background:var(--panel); color:var(--text); max-width:340px; padding:20px}
-    .dlg::backdrop{background:rgba(0,0,0,.6)}
-    .dlg h3{margin:0 0 10px}
-    .dlg p{margin:0 0 8px; color:var(--muted)}
-    .dlg ol{margin:0 0 16px; padding-left:20px; line-height:1.6}
-
-    footer{margin-top:24px; color:var(--muted); font-size:.78rem; text-align:center}
-  </style>
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <header>
-    <h1>Калькулятор процентовки</h1>
-    <p class="sub">Введите одноповторный максимум — получите рабочие веса и целевую сумму цикла.</p>
+    <h1>Процентовка и цикл</h1>
+    <p class="sub">Калькулятор рабочих весов и умный 4-недельный тренировочный цикл.</p>
+    <nav class="tabs" id="tabs" aria-label="Разделы">
+      <a href="#calc"    data-tab="calc">Калькулятор</a>
+      <a href="#cycle"   data-tab="cycle">Цикл 4 недели</a>
+      <a href="#profile" data-tab="profile">Профиль</a>
+    </nav>
   </header>
 
-  <section class="inputs" id="inputs" aria-label="Одноповторные максимумы"></section>
+  <main>
+    <!-- ───── Раздел: Калькулятор ───── -->
+    <section class="view" id="view-calc" data-view="calc">
+      <section class="inputs" id="inputs" aria-label="Одноповторные максимумы"></section>
 
-  <section class="totals" aria-label="Суммы">
-    <div class="stat">
-      <span class="stat__label">Сумма 1ПМ</span>
-      <span class="stat__value" id="sumNow">—</span>
-    </div>
-    <div class="stat stat--target">
-      <span class="stat__label">Цель цикла · 105%</span>
-      <span class="stat__value" id="sumTarget">—</span>
-    </div>
-  </section>
-
-  <p class="note">Веса округлены до 0,1 кг — в какую сторону округлять решает тренер или атлет.</p>
-
-  <div class="toolbar">
-    <button class="primary" id="save" title="Сохранить текущие веса в историю">💾 Сохранить</button>
-    <button id="install">📲 На экран «Домой»</button>
-    <button id="reset">Сбросить</button>
-  </div>
-
-  <section class="tables" id="tables" aria-label="Процентовка"></section>
-
-  <section aria-label="История">
-    <h2 class="section-title">История</h2>
-    <div id="history"></div>
-  </section>
-
-  <section class="share" aria-label="Поделиться">
-    <h2 class="section-title">Поделиться</h2>
-    <div class="share__card">
-      <img class="share__qr" src="qr.svg" width="180" height="180" alt="QR-код на приложение" loading="lazy">
-      <div class="share__info">
-        <p class="share__hint">Наведите камеру телефона на код — откроется это приложение.</p>
-        <a class="share__url" id="appUrl" href="https://bablakov.github.io/calculator-vesov/" target="_blank" rel="noopener">bablakov.github.io/calculator-vesov</a>
-        <div class="share__actions">
-          <button id="copyLink">Скопировать ссылку</button>
-          <button id="shareLink" hidden>Поделиться…</button>
+      <section class="totals" aria-label="Суммы">
+        <div class="stat">
+          <span class="stat__label">Сумма 1ПМ</span>
+          <span class="stat__value" id="sumNow">—</span>
         </div>
+        <div class="stat stat--target">
+          <span class="stat__label">Цель цикла · 105%</span>
+          <span class="stat__value" id="sumTarget">—</span>
+        </div>
+      </section>
+
+      <p class="note">Веса округлены до 0,1 кг — в какую сторону округлять решает тренер или атлет.</p>
+
+      <div class="toolbar">
+        <button class="primary" id="save" title="Сохранить текущие веса в историю">💾 Сохранить</button>
+        <button id="install">📲 На экран «Домой»</button>
+        <button id="reset">Сбросить</button>
       </div>
-    </div>
-  </section>
+
+      <section class="tables" id="tables" aria-label="Процентовка"></section>
+
+      <section aria-label="История">
+        <h2 class="section-title">История</h2>
+        <div id="history"></div>
+      </section>
+
+      <section class="share" aria-label="Поделиться">
+        <h2 class="section-title">Поделиться</h2>
+        <div class="share__card">
+          <img class="share__qr" src="qr.svg" width="180" height="180" alt="QR-код на приложение" loading="lazy">
+          <div class="share__info">
+            <p class="share__hint">Наведите камеру телефона на код — откроется это приложение.</p>
+            <a class="share__url" id="appUrl" href="https://bablakov.github.io/calculator-vesov/" target="_blank" rel="noopener">bablakov.github.io/calculator-vesov</a>
+            <div class="share__actions">
+              <button id="copyLink">Скопировать ссылку</button>
+              <button id="shareLink" hidden>Поделиться…</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ───── Раздел: Цикл 4 недели ───── -->
+    <section class="view" id="view-cycle" data-view="cycle" hidden>
+      <div id="cycle-root"></div>
+    </section>
+
+    <!-- ───── Раздел: Профиль ───── -->
+    <section class="view" id="view-profile" data-view="profile" hidden>
+      <div id="profile-root"></div>
+    </section>
+  </main>
 
   <dialog id="installHelp" class="dlg">
     <h3>Добавить на главный экран</h3>
@@ -211,281 +106,8 @@
     <button id="helpClose" class="primary">Понятно</button>
   </dialog>
 
-  <footer>Веса хранятся на вашем устройстве · работает офлайн</footer>
+  <footer>Данные хранятся на вашем устройстве · работает офлайн</footer>
 
-  <script>
-    "use strict";
-
-    /* ───── Настройки (меняйте здесь) ─────────────────────────────────────── */
-
-    // Упражнения и их цвета. Чтобы добавить ещё одно — допишите строку.
-    const LIFTS = [
-      { key:"squat",    name:"Присед",        accent:"#ff5d3b" },
-      { key:"bench",    name:"Жим лёжа",      accent:"#3b82f6" },
-      { key:"deadlift", name:"Становая тяга", accent:"#22c55e" },
-    ];
-
-    // Ряд процентов — единый для всех трёх таблиц. Меняйте как угодно.
-    const PERCENTS = [40, 50, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105];
-
-    // Процент целевой суммы цикла.
-    const TARGET_PCT = 105;
-
-    /* ─────────────────────────────────────────────────────────────────────── */
-
-    const MAXES_KEY   = "pct.maxes.v1";
-    const HISTORY_KEY = "pct.history.v1";
-
-    // "82,5" / "82.5 кг" → 82.5 ; мусор и неположительные → 0
-    function parseNum(v){
-      const n = parseFloat(String(v ?? "").replace(",", ".").replace(/[^\d.]/g, ""));
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    }
-    // Округление до десятых килограмма; целые — без ".0"
-    function round1(kg){ return Math.round(kg * 10) / 10; }
-    function fmt(kg){
-      const r = round1(kg);
-      return Number.isInteger(r) ? String(r) : r.toFixed(1);
-    }
-    // Класс строки: спец-подсветка 100/105 + зебра по «нулям»/«пятёркам»
-    function rowClass(p){
-      if (p === 100) return "is-max";
-      if (p === 105) return "is-target";
-      return p % 10 === 0 ? "dec0" : "dec5";
-    }
-
-    const inputsEl  = document.getElementById("inputs");
-    const tablesEl  = document.getElementById("tables");
-    const historyEl = document.getElementById("history");
-    const sumNowEl  = document.getElementById("sumNow");
-    const sumTgtEl  = document.getElementById("sumTarget");
-
-    const inputs = {};   // key → <input>
-    const cells  = {};   // key+"_"+pct → <td>
-
-    for (const lift of LIFTS){
-      // — поле ввода —
-      const field = document.createElement("label");
-      field.className = "field";
-      field.style.setProperty("--accent", lift.accent);
-      field.innerHTML =
-        '<span class="field__name">' + lift.name + '</span>' +
-        '<span class="field__row">' +
-          '<input type="number" inputmode="decimal" step="0.5" min="0" placeholder="0">' +
-          '<span class="field__unit">кг</span>' +
-        '</span>';
-      const input = field.querySelector("input");
-      input.setAttribute("aria-label", lift.name + ", кг");
-      inputs[lift.key] = input;
-      inputsEl.appendChild(field);
-
-      // — таблица —
-      const card = document.createElement("section");
-      card.className = "card";
-      card.style.setProperty("--accent", lift.accent);
-      const rows = PERCENTS.map(function(p){
-        return '<tr class="' + rowClass(p) + '">' +
-                 '<td class="pct">' + p + '%</td>' +
-                 '<td class="val" data-k="' + lift.key + '" data-p="' + p + '">—</td>' +
-               '</tr>';
-      }).join("");
-      card.innerHTML =
-        '<h2 class="card__title">' + lift.name + '</h2>' +
-        '<table class="tbl"><thead><tr><th>%</th><th style="text-align:right">кг</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table>';
-      card.querySelectorAll(".val").forEach(function(td){
-        cells[td.dataset.k + "_" + td.dataset.p] = td;
-      });
-      tablesEl.appendChild(card);
-    }
-
-    function recalc(){
-      let total = 0, target = 0;
-      for (const lift of LIFTS){
-        const max = parseNum(inputs[lift.key].value);
-        total += max;
-        if (max > 0) target += round1(max * TARGET_PCT / 100);   // целевая = сумма округлённых 105%
-        for (const p of PERCENTS){
-          cells[lift.key + "_" + p].textContent = max > 0 ? fmt(max * p / 100) : "—";
-        }
-      }
-      sumNowEl.textContent = total > 0 ? fmt(total) + " кг" : "—";
-      sumTgtEl.textContent = total > 0 ? fmt(target) + " кг" : "—";
-      persistInputs();
-    }
-
-    /* ───── Хранение текущих значений ───── */
-    function persistInputs(){
-      const data = {};
-      for (const lift of LIFTS) data[lift.key] = inputs[lift.key].value;
-      try { localStorage.setItem(MAXES_KEY, JSON.stringify(data)); } catch (e) {}
-    }
-    function loadInputs(){
-      try {
-        const data = JSON.parse(localStorage.getItem(MAXES_KEY) || "{}");
-        for (const lift of LIFTS) if (data[lift.key]) inputs[lift.key].value = data[lift.key];
-      } catch (e) {}
-    }
-
-    /* ───── История ───── */
-    function readHistory(){
-      try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch (e) { return []; }
-    }
-    function writeHistory(list){
-      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); } catch (e) {}
-    }
-    function saveSnapshot(){
-      const rec = { id: Date.now(), ts: Date.now() };
-      let any = false;
-      for (const lift of LIFTS){
-        const v = parseNum(inputs[lift.key].value);
-        rec[lift.key] = v;
-        if (v > 0) any = true;
-      }
-      if (!any) return;                       // нечего сохранять
-      const list = readHistory();
-      list.unshift(rec);
-      if (list.length > 50) list.length = 50; // лимит
-      writeHistory(list);
-      renderHistory();
-    }
-    function renderHistory(){
-      const list = readHistory();
-      if (!list.length){
-        historyEl.innerHTML = '<p class="muted">Пока нет записей. Введите веса и нажмите «Сохранить».</p>';
-        return;
-      }
-      historyEl.innerHTML = list.map(function(rec){
-        let total = 0;
-        for (const lift of LIFTS) total += (rec[lift.key] || 0);
-        const d = new Date(rec.ts);
-        const date = d.toLocaleDateString("ru-RU") + " " +
-                     d.toLocaleTimeString("ru-RU", { hour:"2-digit", minute:"2-digit" });
-        const parts = LIFTS.map(function(l){
-          return l.name.split(" ")[0] + " " + fmt(rec[l.key] || 0);
-        }).join(" · ");
-        return '<div class="hrow">' +
-          '<div class="hrow__main">' +
-            '<div class="hrow__top"><span class="hrow__date">' + date + '</span>' +
-            '<span class="hrow__total">Σ ' + fmt(total) + ' кг</span></div>' +
-            '<div class="hrow__parts">' + parts + '</div>' +
-          '</div>' +
-          '<div class="hrow__actions">' +
-            '<button class="hbtn" data-act="load" data-id="' + rec.id + '">Загрузить</button>' +
-            '<button class="hbtn hbtn--del" data-act="del" data-id="' + rec.id + '" aria-label="Удалить">✕</button>' +
-          '</div>' +
-        '</div>';
-      }).join("");
-    }
-    historyEl.addEventListener("click", function(e){
-      const btn = e.target.closest("button[data-act]");
-      if (!btn) return;
-      const id = Number(btn.dataset.id);
-      const list = readHistory();
-      if (btn.dataset.act === "del"){
-        writeHistory(list.filter(function(r){ return r.id !== id; }));
-        renderHistory();
-      } else if (btn.dataset.act === "load"){
-        const rec = list.find(function(r){ return r.id === id; });
-        if (rec){
-          for (const lift of LIFTS) inputs[lift.key].value = rec[lift.key] ? String(rec[lift.key]) : "";
-          recalc();
-          window.scrollTo({ top:0, behavior:"smooth" });
-        }
-      }
-    });
-
-    /* ───── Кнопки ───── */
-    for (const lift of LIFTS) inputs[lift.key].addEventListener("input", recalc);
-
-    document.getElementById("save").addEventListener("click", saveSnapshot);
-    document.getElementById("reset").addEventListener("click", function(){
-      for (const lift of LIFTS) inputs[lift.key].value = "";
-      recalc();
-      inputs[LIFTS[0].key].focus();
-    });
-
-    /* ───── Поделиться: копировать ссылку / системный «Поделиться» ───── */
-    const APP_URL = document.getElementById("appUrl").href;
-    const copyBtn = document.getElementById("copyLink");
-    copyBtn.addEventListener("click", async function(){
-      try { await navigator.clipboard.writeText(APP_URL); copyBtn.textContent = "Скопировано ✓"; }
-      catch (e) { copyBtn.textContent = "Скопируйте вручную"; }
-      setTimeout(function(){ copyBtn.textContent = "Скопировать ссылку"; }, 1800);
-    });
-    const shareBtn = document.getElementById("shareLink");
-    if (navigator.share){               // системный лист «Поделиться» (телефоны)
-      shareBtn.hidden = false;
-      shareBtn.addEventListener("click", function(){
-        navigator.share({ title: "Калькулятор процентовки", url: APP_URL }).catch(function(){});
-      });
-    }
-
-    /* ───── Установка на главный экран ───── */
-    const installBtn  = document.getElementById("install");
-    const installHelp = document.getElementById("installHelp");
-    let deferredPrompt = null;
-
-    function isStandalone(){
-      return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-    }
-    function isIOS(){
-      return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-             (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS
-    }
-    if (isStandalone()) installBtn.hidden = true;   // уже установлено — кнопка не нужна
-
-    window.addEventListener("beforeinstallprompt", function(e){
-      e.preventDefault();        // придержим штатный баннер — покажем по кнопке
-      deferredPrompt = e;
-    });
-    window.addEventListener("appinstalled", function(){
-      installBtn.hidden = true;
-      deferredPrompt = null;
-    });
-
-    installBtn.addEventListener("click", async function(){
-      if (deferredPrompt){               // Android/Chrome — нативная установка
-        deferredPrompt.prompt();
-        await deferredPrompt.userChoice;
-        deferredPrompt = null;
-        return;
-      }
-      // iOS или промпт ещё недоступен — показать инструкцию
-      const ios = isIOS();
-      document.getElementById("helpIOS").hidden = !ios;
-      document.getElementById("helpAndroid").hidden = ios;
-      if (typeof installHelp.showModal === "function") installHelp.showModal();
-      else installHelp.setAttribute("open", "");
-    });
-    document.getElementById("helpClose").addEventListener("click", function(){ installHelp.close(); });
-
-    /* ───── Старт ───── */
-    loadInputs();
-    recalc();
-    renderHistory();
-
-    // Service worker + авто-обновление (только по http(s): localhost и GitHub Pages).
-    if ("serviceWorker" in navigator && location.protocol.startsWith("http")){
-      // Если страница уже под управлением SW (не первый визит) — при активации
-      // новой версии тихо перезагрузимся. Данные не теряются: они в localStorage.
-      if (navigator.serviceWorker.controller){
-        let reloaded = false;
-        navigator.serviceWorker.addEventListener("controllerchange", function(){
-          if (reloaded) return;
-          reloaded = true;
-          window.location.reload();
-        });
-      }
-      window.addEventListener("load", function(){
-        navigator.serviceWorker.register("sw.js").then(function(reg){
-          reg.update().catch(function(){});                     // проверить обновление при запуске
-          document.addEventListener("visibilitychange", function(){ // и при возврате к приложению
-            if (document.visibilityState === "visible") reg.update().catch(function(){});
-          });
-        }).catch(function(){});
-      });
-    }
-  </script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
