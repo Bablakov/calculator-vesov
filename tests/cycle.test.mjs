@@ -2,6 +2,7 @@
 import { eq } from "./_assert.mjs";
 import { round2_5, plateOptions, parseNum } from "../js/util.js";
 import { buildProgram, setId } from "../js/cycle.js";
+import { WEEKS } from "../js/config.js";
 
 console.log("cycle / util:");
 eq(round2_5(113), 112.5, "round2_5(113)=112.5");
@@ -19,8 +20,10 @@ eq(prog[0].days.map((d) => d.exercises.some((e) => e.key === "bench")), [true, t
 const sq = prog[0].days[0].exercises.find((e) => e.key === "squat").sets[2];
 eq([sq.pct, sq.reps, sq.exact, sq.plate], [85, "макс", 170, 170], "присед н1 п3: 85%×макс от 200 = 170");
 
-const w3 = prog[2].days[0].exercises.find((e) => e.key === "squat").sets[3];
-eq([w3.pct, w3.reps, w3.exact], [105, 1, 210], "присед н3 п4: 105%×1 от 200 = 210");
+const w3sets = prog[2].days[0].exercises.find((e) => e.key === "squat").sets;
+eq(w3sets.length, 3, "неделя 3 — 3 подхода (105% убрана)");
+eq([w3sets[2].pct, w3sets[2].reps, w3sets[2].exact], [95, 1, 190], "присед н3 п3: 95%×1 от 200 = 190");
+eq(WEEKS.flatMap((w) => w.sets).some((s) => s.pct === 105), false, "105% нет нигде в матрице недель");
 
 const b = prog[0].days[0].exercises.find((e) => e.key === "bench").sets[2];
 eq([b.exact, b.plate], [119, 120], "жим 85% от 140: точно 119, на снарядах 120");

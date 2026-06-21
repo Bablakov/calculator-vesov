@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <meta name="description" content="Пауэрлифтинг: калькулятор процентовки (присед, жим, становая) и умный 4-недельный тренировочный цикл с дневником.">
-  <title>Процентовка и цикл</title>
+  <meta name="description" content="Пауэрлифтинг: калькулятор весов по неделям, программы тренировок, журнал, подсобки и профиль атлета.">
+  <title>Процентовка и программы</title>
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
@@ -19,12 +19,14 @@
 </head>
 <body>
   <header>
-    <h1>Процентовка и цикл</h1>
-    <p class="sub">Калькулятор рабочих весов и умный 4-недельный тренировочный цикл.</p>
+    <h1>Процентовка и программы</h1>
+    <p class="sub">Калькулятор весов по неделям, программы и журнал тренировок.</p>
     <nav class="tabs" id="tabs" aria-label="Разделы">
-      <a href="#calc"    data-tab="calc">Калькулятор</a>
-      <a href="#cycle"   data-tab="cycle">Цикл 4 недели</a>
-      <a href="#profile" data-tab="profile">Профиль</a>
+      <a href="#calc"        data-tab="calc">Калькулятор</a>
+      <a href="#programs"    data-tab="programs">Программы</a>
+      <a href="#journal"     data-tab="journal">Журнал</a>
+      <a href="#accessories" data-tab="accessories">Подсобки</a>
+      <a href="#profile"     data-tab="profile">Профиль</a>
     </nav>
   </header>
 
@@ -44,7 +46,7 @@
         </div>
       </section>
 
-      <p class="note">Веса округлены до 0,1 кг — в какую сторону округлять решает тренер или атлет.</p>
+      <p class="note">Веса по неделям цикла, округлены до 0,1 кг — в какую сторону округлять решает тренер или атлет. 105% (проходка) в программе не используется.</p>
 
       <div class="toolbar">
         <button class="primary" id="save" title="Сохранить текущие веса в историю">💾 Сохранить</button>
@@ -52,10 +54,10 @@
         <button id="reset">Сбросить</button>
       </div>
 
-      <section class="tables" id="tables" aria-label="Процентовка"></section>
+      <section class="weeks" id="weeks" aria-label="Веса по неделям"></section>
 
       <section aria-label="История">
-        <h2 class="section-title">История</h2>
+        <h2 class="section-title">История 1ПМ</h2>
         <div id="history"></div>
       </section>
 
@@ -75,9 +77,31 @@
       </section>
     </section>
 
-    <!-- ───── Раздел: Цикл 4 недели ───── -->
-    <section class="view" id="view-cycle" data-view="cycle" hidden>
-      <div id="cycle-root"></div>
+    <!-- ───── Раздел: Программы ───── -->
+    <section class="view" id="view-programs" data-view="programs" hidden>
+      <div class="placeholder">
+        <h2>Программы</h2>
+        <p>Шаблоны (наш 4-нед. цикл, 5/3/1, Шейко, Куб) и конструктор своих программ.</p>
+        <p class="muted">🔧 Раздел в разработке — следующий шаг Фазы 1.</p>
+      </div>
+    </section>
+
+    <!-- ───── Раздел: Журнал ───── -->
+    <section class="view" id="view-journal" data-view="journal" hidden>
+      <div class="placeholder">
+        <h2>Журнал</h2>
+        <p>План тренировки (просмотр программы) и факт (дневник выполнения: повторы, вес, качество, ошибки, заметки).</p>
+        <p class="muted">🔧 Раздел в разработке — Фаза 1.</p>
+      </div>
+    </section>
+
+    <!-- ───── Раздел: Подсобки ───── -->
+    <section class="view" id="view-accessories" data-view="accessories" hidden>
+      <div class="placeholder">
+        <h2>Подсобки</h2>
+        <p>Каталог подсобных упражнений по категориям и подбор подсобок под типовую ошибку.</p>
+        <p class="muted">🔧 Раздел в разработке — Фаза 1.</p>
+      </div>
     </section>
 
     <!-- ───── Раздел: Профиль ───── -->

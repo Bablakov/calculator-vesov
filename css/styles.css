@@ -66,36 +66,23 @@ button{
 button:active{transform:translateY(1px)}
 button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a}
 
-/* Таблицы процентовки — всегда 3 в один ряд, на всю ширину */
-.tables{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--gap); align-items:start}
-.card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; min-width:0}
-.card__title{
-  margin:0; padding:clamp(9px,1.4vw,12px) clamp(8px,1.5vw,16px); font-size:clamp(.82rem,2.3vw,1.05rem);
-  border-bottom:1px solid var(--border); border-left:4px solid var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+/* Таблицы недель: 4 блока вертикально, в каждом — % и колонки упражнений */
+.weeks{display:flex; flex-direction:column; gap:var(--gap)}
+.weekcard{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden}
+.weekcard__title{
+  margin:0; padding:clamp(9px,1.4vw,12px) clamp(10px,1.6vw,16px); font-size:clamp(.9rem,2.4vw,1.05rem);
+  border-bottom:1px solid var(--border); border-left:4px solid var(--accent); display:flex; align-items:baseline; gap:8px;
 }
-.tbl{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; table-layout:fixed}
-.tbl th{
-  padding:7px clamp(7px,1.3vw,16px); text-align:left; font-size:clamp(.64rem,1.5vw,.72rem); font-weight:600;
-  text-transform:uppercase; letter-spacing:.04em; color:var(--muted);
+.weekcard__kind{font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted)}
+.wtbl{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; table-layout:fixed}
+.wtbl thead th{
+  padding:8px clamp(7px,1.3vw,14px); text-align:right; font-size:clamp(.64rem,1.6vw,.74rem); font-weight:700;
+  text-transform:uppercase; letter-spacing:.03em; color:var(--muted);
 }
-.tbl td{padding:clamp(7px,1vw,9px) clamp(7px,1.3vw,16px); border-top:1px solid var(--border)}
-.tbl .pct{width:42%; font-size:clamp(.78rem,2vw,.95rem)}
-.tbl .val{font-weight:700; font-size:clamp(.86rem,2.2vw,1.05rem); text-align:right}
-
-/* Зебра по «нулям» и «пятёркам» — для удобной навигации по списку */
-.tbl tr.dec0{background:rgba(255,255,255,.035)}
-.tbl tr.dec0 .pct{color:#c2cad6}
-.tbl tr.dec5{background:rgba(0,0,0,.22)}
-.tbl tr.dec5 .pct{color:#828b99}
-.tbl tr.dec5 .val{color:#aeb6c2}
-/* 100% — рабочий максимум (цвет упражнения) */
-.tbl tr.is-max{background:color-mix(in srgb, var(--accent) 16%, transparent)}
-.tbl tr.is-max .pct,
-.tbl tr.is-max .val{color:var(--accent)}
-/* 105% — цель/над-максимум, отдельный золотой цвет */
-.tbl tr.is-target{background:color-mix(in srgb, var(--target) 20%, transparent)}
-.tbl tr.is-target .pct,
-.tbl tr.is-target .val{color:var(--target); font-weight:800}
+.wtbl thead th:not(.wpct){color:var(--accent)}
+.wtbl td{padding:clamp(8px,1.1vw,10px) clamp(7px,1.3vw,14px); border-top:1px solid var(--border); text-align:right; font-weight:700; font-size:clamp(.9rem,2.2vw,1.05rem)}
+.wtbl .wpct{text-align:left; width:22%; font-weight:600; color:var(--muted); font-size:clamp(.78rem,2vw,.95rem)}
+.wtbl tbody tr:nth-child(odd){background:rgba(255,255,255,.03)}
 
 /* История */
 .hrow{
@@ -130,42 +117,10 @@ button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a
 .dlg p{margin:0 0 8px; color:var(--muted)}
 .dlg ol{margin:0 0 16px; padding-left:20px; line-height:1.6}
 
-/* ───── Цикл 4 недели ───── */
-.cyc-empty{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center}
-.cyc-empty p{margin:0 0 12px; color:var(--muted)}
-.btn-link, .cyc-edit{color:var(--accent); text-decoration:none; font-weight:600}
-.btn-link:hover, .cyc-edit:hover{text-decoration:underline}
-
-.weekpills{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px}
-.weekpill{
-  display:flex; flex-direction:column; gap:2px; align-items:center; text-align:center;
-  padding:9px 4px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text);
-}
-.weekpill__n{font-weight:700; font-size:clamp(.74rem,1.9vw,.92rem)}
-.weekpill__kind{font-size:clamp(.6rem,1.6vw,.72rem); color:var(--muted)}
-.weekpill.is-active{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--panel))}
-.weekpill.is-active .weekpill__kind{color:var(--text)}
-
-/* Выбор дня сплита */
-.daypills{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px}
-.daypill{display:flex; flex-direction:column; gap:2px; align-items:center; padding:9px 4px;
-  border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text)}
-.daypill__n{font-weight:700; font-size:clamp(.74rem,1.9vw,.92rem)}
-.daypill__abbr{font-size:clamp(.6rem,1.6vw,.72rem); color:var(--muted)}
-.daypill.is-active{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--panel))}
-.daypill.is-active .daypill__abbr{color:var(--text)}
-
-/* Программа дня: упражнение → подходы (% · кг · повт) */
-.prog{display:flex; flex-direction:column; gap:14px}
-.progex{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px}
-.progex__name{font-weight:700; margin-bottom:8px}
-.psets{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
-.pset{display:grid; grid-template-columns:auto 1fr auto auto; align-items:baseline; gap:10px;
-  padding:8px 10px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; font-variant-numeric:tabular-nums}
-.pset__pct{font-weight:700; color:var(--accent); min-width:42px}
-.pset__kg{font-weight:800; font-size:1.05rem}
-.pset__plate{color:var(--muted); font-size:.82rem}
-.pset__reps{color:var(--muted); white-space:nowrap; text-align:right}
+/* Заглушки разделов в разработке */
+.placeholder{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:22px; text-align:center}
+.placeholder h2{margin:0 0 10px}
+.placeholder p{margin:0 0 8px; color:var(--muted)}
 
 /* ───── Профиль ───── */
 .prof-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:14px}
@@ -200,6 +155,10 @@ button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a
 .now{padding:9px 10px; font-size:.82rem; background:var(--panel); border:1px solid var(--border); border-radius:8px; color:var(--text); white-space:nowrap}
 .tm-dur{margin-top:10px; color:var(--muted)}
 .tm-dur b{color:var(--text)}
+
+.role{display:flex; gap:8px}
+.role__btn{flex:1; padding:11px; border:1px solid var(--border); border-radius:10px; background:var(--panel2); color:var(--text); font-weight:600; cursor:pointer}
+.role__btn.is-active{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--panel))}
 
 footer{margin-top:24px; color:var(--muted); font-size:.78rem; text-align:center}
 

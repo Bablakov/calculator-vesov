@@ -69,6 +69,9 @@ export function initProfile(root){
   });
 
   root.addEventListener("click", (e) => {
+    const roleBtn = e.target.closest("[data-role]");
+    if (roleBtn){ saveProfileField("role", roleBtn.dataset.role); render(root); return; }
+
     const now = e.target.closest("[data-now]");
     if (now){
       const field = now.dataset.now;
@@ -105,6 +108,7 @@ function refreshDuration(root){
 
 function render(root){
   const p = get(KEYS.profile, {});
+  const role = p.role || "athlete";
   const weights = get(KEYS.weight, []);
   const t = get(KEYS.timing, {});
   const dur = computeDuration(t.start, t.end);
@@ -127,6 +131,16 @@ function render(root){
           pf("Возраст", '<input type="number" inputmode="numeric" min="0" data-pf="age" value="' + escapeAttr(p.age) + '" placeholder="лет">') +
         '</div>' +
       '</div>' +
+    '</section>' +
+
+    // Роль (понадобится в Фазе 2)
+    '<section class="prof-card">' +
+      '<h3 class="prof-h">Роль</h3>' +
+      '<div class="role">' +
+        '<button type="button" class="role__btn' + (role !== "coach" ? " is-active" : "") + '" data-role="athlete">Атлет</button>' +
+        '<button type="button" class="role__btn' + (role === "coach" ? " is-active" : "") + '" data-role="coach">Тренер</button>' +
+      '</div>' +
+      '<p class="muted" style="margin:8px 0 0">Полное разделение тренер/атлет — в Фазе 2 (бэкенд).</p>' +
     '</section>' +
 
     // Вес тела

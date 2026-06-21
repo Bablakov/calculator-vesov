@@ -1,28 +1,22 @@
-// Калькулятор процентовки: поля 1ПМ, три таблицы, суммы, история.
-import { LIFTS, PERCENTS, TARGET_PCT } from "./config.js";
+// Калькулятор: поля 1ПМ, суммы и 4 таблицы недель (веса от 1ПМ по матрице).
+// Тип по умолчанию — троеборье (все упражнения). 105% в таблицах не показываем.
+import { LIFTS, WEEKS, TARGET_PCT } from "./config.js";
 import { parseNum, round1, fmt, fmtDateTime } from "./util.js";
 import { get, set, KEYS } from "./store.js";
 
-// Класс строки: спец-подсветка 100/105 + зебра по «нулям»/«пятёркам».
-function rowClass(p){
-  if (p === 100) return "is-max";
-  if (p === 105) return "is-target";
-  return p % 10 === 0 ? "dec0" : "dec5";
-}
-
 export function initCalc(){
   const inputsEl  = document.getElementById("inputs");
-  const tablesEl  = document.getElementById("tables");
+  const weeksEl   = document.getElementById("weeks");
   const historyEl = document.getElementById("history");
   const sumNowEl  = document.getElementById("sumNow");
   const sumTgtEl  = document.getElementById("sumTarget");
   if (!inputsEl) return;
 
   const inputs = {};   // key → <input>
-  const cells  = {};   // key+"_"+pct → <td>
+  const cells  = {};   // "n_si_key" → <td>
 
+  // — Поля ввода 1ПМ —
   for (const lift of LIFTS){
-    // — поле ввода —
     const field = document.createElement("label");
     field.className = "field";
     field.style.setProperty("--accent", lift.accent);
@@ -36,38 +30,48 @@ export function initCalc(){
     input.setAttribute("aria-label", lift.name + ", кг");
     inputs[lift.key] = input;
     inputsEl.appendChild(field);
+  }
 
-    // — таблица —
+  // — Таблицы недель —
+  for (const week of WEEKS){
     const card = document.createElement("section");
-    card.className = "card";
-    card.style.setProperty("--accent", lift.accent);
-    const rows = PERCENTS.map((p) =>
-      '<tr class="' + rowClass(p) + '">' +
-        '<td class="pct">' + p + '%</td>' +
-        '<td class="val" data-k="' + lift.key + '" data-p="' + p + '">—</td>' +
+    card.className = "weekcard";
+    const head =
+      '<tr><th class="wpct">%</th>' +
+      LIFTS.map((l) => '<th style="--accent:' + l.accent + '">' + l.short + '</th>').join("") +
+      '</tr>';
+    const body = week.sets.map((s, si) =>
+      '<tr><td class="wpct">' + s.pct + '%</td>' +
+      LIFTS.map((l) => '<td class="wval" data-c="' + week.n + '_' + si + '_' + l.key + '">—</td>').join("") +
       '</tr>').join("");
     card.innerHTML =
-      '<h2 class="card__title">' + lift.name + '</h2>' +
-      '<table class="tbl"><thead><tr><th>%</th><th style="text-align:right">кг</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>';
-    card.querySelectorAll(".val").forEach((td) => { cells[td.dataset.k + "_" + td.dataset.p] = td; });
-    tablesEl.appendChild(card);
+      '<h3 class="weekcard__title">Неделя ' + week.n + ' <span class="weekcard__kind">' + week.kind + '</span></h3>' +
+      '<table class="wtbl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+    card.querySelectorAll(".wval").forEach((td) => { cells[td.dataset.c] = td; });
+    weeksEl.appendChild(card);
   }
 
   function recalc(){
     let total = 0, target = 0;
+    const maxes = {};
     for (const lift of LIFTS){
       const max = parseNum(inputs[lift.key].value);
+      maxes[lift.key] = max;
       total += max;
       if (max > 0) target += round1(max * TARGET_PCT / 100);   // цель = сумма округлённых 105%
-      for (const p of PERCENTS){
-        cells[lift.key + "_" + p].textContent = max > 0 ? fmt(max * p / 100) : "—";
-      }
+    }
+    for (const week of WEEKS){
+      week.sets.forEach((s, si) => {
+        for (const lift of LIFTS){
+          const max = maxes[lift.key];
+          cells[week.n + "_" + si + "_" + lift.key].textContent = max > 0 ? fmt(max * s.pct / 100) : "—";
+        }
+      });
     }
     sumNowEl.textContent = total > 0 ? fmt(total) + " кг" : "—";
     sumTgtEl.textContent = total > 0 ? fmt(target) + " кг" : "—";
     persistInputs();
-    document.dispatchEvent(new CustomEvent("maxes:changed"));   // сигнал циклу пересчитаться
+    document.dispatchEvent(new CustomEvent("maxes:changed"));
   }
 
   /* ───── Хранение текущих значений ───── */
@@ -81,7 +85,7 @@ export function initCalc(){
     for (const lift of LIFTS) if (data[lift.key]) inputs[lift.key].value = data[lift.key];
   }
 
-  /* ───── История ───── */
+  /* ───── История 1ПМ ───── */
   function saveSnapshot(){
     const rec = { id: Date.now(), ts: Date.now() };
     let any = false;

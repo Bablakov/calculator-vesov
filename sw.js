@@ -1,6 +1,6 @@
 /* Service worker: офлайн-кэш «оболочки» приложения.
    При изменении файлов поднимите версию в CACHE — старый кэш очистится. */
-const CACHE = "pct-v9";
+const CACHE = "pct-v10";
 const ASSETS = [
   ".",
   "index.html",
@@ -11,10 +11,7 @@ const ASSETS = [
   "js/util.js",
   "js/store.js",
   "js/config.js",
-  "js/content.js",
   "js/calc.js",
-  "js/cycle.js",
-  "js/cycleview.js",
   "js/profile.js",
   "js/pwa.js",
   "icon.svg",
