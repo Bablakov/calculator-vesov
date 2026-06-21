@@ -160,9 +160,89 @@ button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a
 .role__btn{flex:1; padding:11px; border:1px solid var(--border); border-radius:10px; background:var(--panel2); color:var(--text); font-weight:600; cursor:pointer}
 .role__btn.is-active{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--panel))}
 
+/* ── Пилюли (недели) + ссылки ── */
+.pills{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+.pill{display:flex; flex-direction:column; gap:2px; align-items:center; padding:8px 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text); cursor:pointer}
+.pill__n{font-weight:700; font-size:.88rem}
+.pill__sub{font-size:.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em}
+.pill.is-active{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--panel))}
+.pill.is-active .pill__sub{color:var(--text)}
+.btn-link{color:var(--accent); text-decoration:none; font-weight:600}
+.btn-link:hover{text-decoration:underline}
+
+/* ── Программа / план (упражнение → подходы) ── */
+.prog{display:flex; flex-direction:column; gap:12px}
+.progex{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px}
+.progex__name{font-weight:700; margin-bottom:8px}
+.psets{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.pset{display:grid; grid-template-columns:auto 1fr auto auto; align-items:baseline; gap:10px; padding:8px 10px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; font-variant-numeric:tabular-nums}
+.pset__pct{font-weight:700; color:var(--accent); min-width:42px}
+.pset__kg{font-weight:800}
+.pset__plate{color:var(--muted); font-size:.82rem; text-align:right}
+.pset__reps{color:var(--muted); white-space:nowrap; text-align:right}
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0}
+.chip{padding:6px 10px; font-size:.85rem; background:var(--panel); border:1px solid var(--border); border-radius:999px; color:var(--text); font-variant-numeric:tabular-nums; cursor:pointer}
+
+/* ── Программы ── */
+.phead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:6px 0 10px}
+.prow{display:flex; align-items:center; gap:10px; justify-content:space-between; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:11px 14px; margin-bottom:8px}
+.prow__main{display:flex; flex-direction:column; gap:2px; min-width:0}
+.prow__meta, .prow__note{font-size:.8rem; color:var(--muted)}
+.prow__act{display:flex; gap:6px; flex-shrink:0}
+.constructor .frow{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0}
+.wks{display:flex; flex-direction:column; gap:12px; margin:12px 0}
+.wk{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px}
+.wk__head{display:flex; gap:8px; align-items:center; margin-bottom:10px}
+.wk__no{font-weight:700; white-space:nowrap}
+.wk__kind{flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); font:600 .9rem/1 inherit}
+.wk__sets{display:flex; flex-direction:column; gap:6px}
+.stp{display:flex; align-items:center; gap:6px}
+.stp input{width:100%; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); font:600 .9rem/1 inherit}
+.stp input[data-f="pct"]{max-width:84px}
+.stp__x{color:var(--muted); white-space:nowrap}
+.form-err{background:color-mix(in srgb, #ef4444 14%, var(--panel)); border:1px solid #ef4444; border-radius:8px; padding:9px 12px; font-size:.88rem; margin:0 0 12px}
+
+/* ── Журнал ── */
+.jtabs{display:flex; gap:8px; margin:12px 0 14px}
+.jtab{flex:1; padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--panel2); color:var(--text); font-weight:600; cursor:pointer}
+.jtab.is-active{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--panel))}
+.startbox{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; text-align:center}
+.startbox p{margin:0 0 12px}
+.factbar{background:color-mix(in srgb, var(--accent) 12%, var(--panel)); border:1px solid var(--border); border-radius:10px; padding:9px 12px; margin-bottom:12px; font-size:.9rem}
+.fset{background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px}
+.fset__plan{font-size:.82rem; color:var(--muted); margin-bottom:8px}
+.fset__row{display:grid; grid-template-columns:1fr 1fr 1.3fr; gap:8px}
+.fset__row2{display:grid; grid-template-columns:1fr 1.4fr; gap:8px; margin-top:8px}
+.ff{display:flex; flex-direction:column; gap:3px; min-width:0}
+.ff>span{font-size:.66rem; color:var(--muted); text-transform:uppercase}
+.fset input, .fset select{width:100%; min-width:0; padding:8px 9px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); font:600 .9rem/1 inherit}
+.srow{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px 14px; margin-bottom:8px}
+.srow__head{display:flex; justify-content:space-between; gap:10px; align-items:baseline; cursor:pointer; flex-wrap:wrap}
+.srow__meta{font-size:.82rem; color:var(--muted); font-variant-numeric:tabular-nums}
+.srow__act{margin-top:8px}
+.sdetail{margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:4px}
+.sline{font-size:.85rem; color:var(--muted)}
+
+/* ── Подсобки ── */
+.acat{margin-bottom:10px}
+.acard{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:11px 14px; margin-bottom:8px}
+.acard--own{display:flex; align-items:center; justify-content:space-between; gap:10px}
+.acard__name{font-weight:700}
+.acard__mus{font-size:.8rem; color:var(--accent); margin-top:2px}
+.acard__how{font-size:.88rem; margin-top:4px}
+.acard__helps{font-size:.85rem; color:var(--muted); margin-top:4px}
+.own-tag{font-size:.66rem; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:1px 6px}
+.add-own .bw-add{flex-wrap:wrap}
+.add-own input, .add-own select{padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--panel2); color:var(--text); font:600 .95rem/1 inherit}
+.prob{padding:8px 0; border-top:1px solid var(--border)}
+.prob__name{font-weight:600; margin-bottom:6px}
+.prob__list{display:flex; flex-wrap:wrap; gap:6px}
+.tagacc{font-size:.82rem; background:var(--panel2); border:1px solid var(--border); border-radius:999px; padding:5px 10px; color:var(--text)}
+
 footer{margin-top:24px; color:var(--muted); font-size:.78rem; text-align:center}
 
 @media (max-width:560px){
   .prof-fields{grid-template-columns:1fr}
   .tm-grid{grid-template-columns:1fr}
+  .constructor .frow{grid-template-columns:1fr}
 }
