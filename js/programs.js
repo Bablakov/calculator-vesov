@@ -7,6 +7,7 @@ import {
   LEVELS, LEVEL_BY_KEY, DISCIPLINES, DISCIPLINE_BY_KEY,
   focusesFor, focusByKey, buildTemplate,
 } from "./templates.js";
+import { getAccDefaults } from "./contentstore.js";
 
 /* ───── Чистая логика (покрыта тестами) ───── */
 
@@ -42,11 +43,12 @@ export function validProgram(p){
   );
 }
 
-// Заготовки конструктора.
+// Заготовки конструктора. Новые упражнения сразу с базовыми подсобками.
+function defaultAcc(key){ return (getAccDefaults()[key] || []).map((a) => ({ ...a })); }
 function newExercise(disciplineKey){
   const d = DISCIPLINE_BY_KEY[disciplineKey];
   const key = d && d.lifts[0] ? d.lifts[0] : "squat";
-  return { key, sets: [ { pct: 70, reps: 5 } ], acc: [] };
+  return { key, sets: [ { pct: 70, reps: 5 } ], acc: defaultAcc(key) };
 }
 function newDay(i, disciplineKey){ return { name: "День " + (i + 1), exercises: [ newExercise(disciplineKey) ] }; }
 // Новая неделя — по умолчанию 3 дня по сплиту дисциплины (движение на день).
@@ -55,7 +57,7 @@ function newWeek(disciplineKey){
   const layout = (d && d.days && d.days.length) ? d.days : ["squat"];
   return { kind: "", days: layout.map((key, i) => {
     const short = LIFT_BY_KEY[key] ? LIFT_BY_KEY[key].short : key;
-    return { name: "День " + (i + 1) + " · " + short, exercises: [ { key, sets: [ { pct: 70, reps: 5 } ], acc: [] } ] };
+    return { name: "День " + (i + 1) + " · " + short, exercises: [ { key, sets: [ { pct: 70, reps: 5 } ], acc: defaultAcc(key) } ] };
   }) };
 }
 

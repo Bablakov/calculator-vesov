@@ -1,7 +1,8 @@
 // Контент программ (ДАННЫЕ) + генератор шаблонов.
 // ⚠️ Контент — ЧЕРНОВИК: уровни / дисциплины / упоры / подсобки и схемы правятся
 //    позже в админ-панели (TZ §11.8). Логика (генерация от 1ПМ, рендер) — отдельно.
-import { WEEKS, LIFT_BY_KEY } from "./config.js";
+import { LIFT_BY_KEY } from "./config.js";
+import { getWeeks, getAccDefaults } from "./contentstore.js";
 
 /* ─── Уровень подготовки (шаг 1 мастера) ─── */
 export const LEVELS = [
@@ -53,13 +54,6 @@ export function focusByKey(disciplineKey, focusKey){
   return list.find((f) => f.key === focusKey) || list[0];
 }
 
-/* ─── Базовые подсобки на каждое основное движение ─── */
-export const ACC_DEFAULTS = {
-  squat:    [ACC("Фронтальный присед", 3, 8), ACC("Гиперэкстензии", 3, 12)],
-  bench:    [ACC("Жим узким хватом", 3, 8), ACC("Отжимания на брусьях", 3, 10)],
-  deadlift: [ACC("Румынская тяга", 3, 8), ACC("Тяга в наклоне", 3, 10)],
-};
-
 /* ─── Уровень меняет объём основного движения (черновая логика) ─── */
 function applyLevel(sets, levelKey){
   if (levelKey === "novice") return sets.slice(0, 2);
@@ -74,11 +68,12 @@ export function buildTemplate(levelKey, disciplineKey, focusKey, id){
   const disc  = DISCIPLINE_BY_KEY[disciplineKey] || DISCIPLINES[0];
   const focus = focusByKey(disc.key, focusKey);
 
-  const weeks = WEEKS.map((w) => ({
+  const accDefaults = getAccDefaults();
+  const weeks = getWeeks().map((w) => ({
     kind: w.kind,
     days: disc.days.map((mainKey, di) => {
       const sets = applyLevel(w.sets, lvl.key).map((s) => ({ pct: s.pct, reps: s.reps }));
-      const acc  = (ACC_DEFAULTS[mainKey] || []).map((a) => ({ ...a }));
+      const acc  = (accDefaults[mainKey] || []).map((a) => ({ ...a }));
       if (focus.target === mainKey && focus.acc) acc.unshift(...focus.acc.map((a) => ({ ...a })));
       const short = LIFT_BY_KEY[mainKey] ? LIFT_BY_KEY[mainKey].short : mainKey;
       return { name: "День " + (di + 1) + " · " + short, exercises: [ { key: mainKey, sets, acc } ] };

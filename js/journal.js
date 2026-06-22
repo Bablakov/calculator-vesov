@@ -1,7 +1,7 @@
 // Раздел «Журнал»: ПЛАН (просмотр) + ФАКТ (дневник) + история тренировок.
-// ФАКТ: основной блок (база) + блок подсобок, упражнения раскрываются (аккордеон),
-// у каждого свои подходы. Автопрогрессия, вес тела и тайминг — в тренировке.
-// Не вписанные вес/повторы по умолчанию = план (из программы); качество/заметки — пустые.
+// ФАКТ: упражнения листаются плашечками/стрелками (по одному), блоки «Основной»/«Подсобка».
+// У каждого подхода — таймер (старт/стоп): время под нагрузкой и отдыха → статистика и отчёты.
+// Автопрогрессия; вес тела и тайминг — в тренировке; пустые вес/повт = план.
 import { get, set, KEYS } from "./store.js";
 import { LIFT_BY_KEY, QUALITY } from "./config.js";
 import { getErrors } from "./contentstore.js";
@@ -11,7 +11,6 @@ import { parseNum, fmt, plateOptions, fmtDateTime, escapeAttr, escapeHtml } from
 
 /* ───── Чистая логика (покрыта тестами) ───── */
 
-// План на день: для каждого упражнения дня — подходы с весом от 1ПМ + подсобки.
 export function planForDay(program, maxes, weekIndex, dayIndex){
   const week = program.weeks[weekIndex];
   if (!week || !Array.isArray(week.days)) return [];
@@ -31,7 +30,7 @@ export function planForDay(program, maxes, weekIndex, dayIndex){
   });
 }
 
-// «Рабочие элементы» дня для тренировки: основные движения + подсобки (как отдельные упражнения).
+// «Рабочие элементы» дня: основные движения + подсобки (как отдельные упражнения).
 export function buildDayItems(program, maxes, weekIndex, dayIndex){
   const plan = planForDay(program, maxes, weekIndex, dayIndex);
   const items = [];
@@ -51,7 +50,6 @@ export function buildDayItems(program, maxes, weekIndex, dayIndex){
   return items;
 }
 
-// Объём по элементам: Σ (факт.вес × факт.повторы), кг.
 export function itemsVolume(items){
   let kg = 0;
   (items || []).forEach((it) => (it.sets || []).forEach((s) => {
@@ -61,8 +59,6 @@ export function itemsVolume(items){
   return Math.round(kg);
 }
 
-// Подстановка плана вместо пустых: вес (для основных = «на снарядах»), повторы (если число).
-// Качество/ошибку/заметку НЕ трогаем.
 export function finalizeItems(items){
   return (items || []).map((it) => ({
     ...it,
@@ -76,14 +72,28 @@ export function finalizeItems(items){
   }));
 }
 
-// Все «слоты» программы по порядку: [{week, day}, …] — для прогрессии.
+// Статистика таймера: время под нагрузкой и отдыха (сек) по меткам st/et подходов.
+export function restWorkStats(items){
+  const timed = [];
+  (items || []).forEach((it) => (it.sets || []).forEach((s) => {
+    const st = Number(s.st), et = Number(s.et);
+    if (Number.isFinite(st) && Number.isFinite(et) && et >= st) timed.push({ st, et });
+  }));
+  timed.sort((a, b) => a.st - b.st);
+  let work = 0, rest = 0;
+  timed.forEach((t, i) => {
+    work += t.et - t.st;
+    if (i > 0){ const r = t.st - timed[i - 1].et; if (r > 0) rest += r; }
+  });
+  return { setsTimed: timed.length, workSec: Math.round(work / 1000), restSec: Math.round(rest / 1000) };
+}
+
 export function flattenSlots(program){
   const slots = [];
   (program.weeks || []).forEach((w, wi) => (w.days || []).forEach((d, di) => slots.push({ week: wi, day: di })));
   return slots;
 }
 
-// Следующая тренировка по числу завершённых для этой программы.
 export function nextSlot(program, sessions){
   const slots = flattenSlots(program);
   if (!slots.length) return { week: 0, day: 0, index: 0, total: 0, cycle: 0 };
@@ -92,14 +102,12 @@ export function nextSlot(program, sessions){
   return { week: slots[pos].week, day: slots[pos].day, index: done, total: slots.length, cycle: Math.floor(done / slots.length) };
 }
 
-// Длительность тренировки в минутах из меток времени.
 export function durationMin(startTs, endTs){
   if (!startTs || !endTs) return null;
   const m = Math.round((endTs - startTs) / 60000);
   return m >= 0 ? m : null;
 }
 
-// Объём из устаревшего формата (entries-map) — для старых записей истории.
 export function sessionVolume(entries){
   let kg = 0;
   for (const id in entries){
@@ -110,7 +118,7 @@ export function sessionVolume(entries){
   return Math.round(kg);
 }
 
-/* ───── Время ───── */
+/* ───── Время / формат ───── */
 function tsToHHMM(ts){ const d = new Date(ts); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
 function hhmmToTs(hhmm, baseTs){
   if (!hhmm) return null;
@@ -121,7 +129,7 @@ function hhmmToTs(hhmm, baseTs){
   if (baseTs && ts < baseTs) ts += 24 * 3600 * 1000;
   return ts;
 }
-
+function clock(sec){ sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec / 60), s = sec % 60; return m + ":" + String(s).padStart(2, "0"); }
 function plSets(n){ const a = n % 100, b = n % 10; if (a > 10 && a < 20) return "подходов"; if (b === 1) return "подход"; if (b >= 2 && b <= 4) return "подхода"; return "подходов"; }
 
 /* ───── Хранение ───── */
@@ -137,12 +145,13 @@ function lastBodyweight(){
 }
 
 /* ───── Состояние UI ───── */
-let tab = "plan";          // plan | fact | history
+let tab = "plan";
 let weekIdx = 0;
 let dayIdx = 0;
 let autoApplied = false;
-let draft = null;          // активная/редактируемая тренировка
-let openSession = null;    // раскрытая запись истории (просмотр)
+let draft = null;          // активная/редактируемая тренировка (+ exIdx — текущее упражнение)
+let openSession = null;
+let timerInt = null;       // интервал «живого» таймера активного подхода
 
 export function initJournal(root){
   autoApplied = false;
@@ -194,8 +203,7 @@ export function renderJournal(root){
     programs.map((p) => '<option value="' + p.id + '"' + (p.id === program.id ? " selected" : "") + '>' + escapeHtml(p.name) + '</option>').join("") +
     '</select></label>';
 
-  const tabs = '<div class="jtabs">' +
-    tabBtn("plan", "План") + tabBtn("fact", "Факт") + tabBtn("history", "История") + '</div>';
+  const tabs = '<div class="jtabs">' + tabBtn("plan", "План") + tabBtn("fact", "Факт") + tabBtn("history", "История") + '</div>';
 
   let body = "";
   if (tab === "plan")    body = planBody(program);
@@ -203,6 +211,7 @@ export function renderJournal(root){
   if (tab === "history") body = historyBody();
 
   root.innerHTML = sel + tabs + body;
+  manageTick(root);
 }
 
 function tabBtn(id, label){
@@ -212,8 +221,7 @@ function tabBtn(id, label){
 function weekPills(program){
   return '<div class="pills">' + program.weeks.map((w, i) =>
     '<button type="button" class="pill' + (i === weekIdx ? " is-active" : "") + '" data-act="week" data-wi="' + i + '">' +
-      '<span class="pill__n">Неделя ' + (i + 1) + '</span>' +
-      (w.kind ? '<span class="pill__sub">' + escapeHtml(w.kind) + '</span>' : '') +
+      '<span class="pill__n">Неделя ' + (i + 1) + '</span>' + (w.kind ? '<span class="pill__sub">' + escapeHtml(w.kind) + '</span>' : '') +
     '</button>').join("") + '</div>';
 }
 
@@ -222,8 +230,7 @@ function dayPills(program){
   if (!week || !week.days) return "";
   return '<div class="pills pills--day">' + week.days.map((d, i) =>
     '<button type="button" class="pill' + (i === dayIdx ? " is-active" : "") + '" data-act="day" data-di="' + i + '">' +
-      '<span class="pill__n">' + escapeHtml(d.name || ("День " + (i + 1))) + '</span>' +
-    '</button>').join("") + '</div>';
+      '<span class="pill__n">' + escapeHtml(d.name || ("День " + (i + 1))) + '</span></button>').join("") + '</div>';
 }
 
 function accList(acc){
@@ -267,16 +274,35 @@ function startBox(program){
     '</div>';
 }
 
+function exPills(items, group){
+  const idxs = items.map((it, i) => i).filter((i) => items[i].kind === group);
+  if (!idxs.length) return "";
+  const lbl = group === "main" ? "Основной блок" : "Подсобка";
+  return '<div class="exgroup__lbl' + (group === "acc" ? " exgroup__lbl--acc" : "") + '">' + lbl + '</div>' +
+    '<div class="expills">' + idxs.map((i) =>
+      '<button type="button" class="expill' + (i === draft.exIdx ? " is-active" : "") + '" data-act="goex" data-it="' + i + '" style="--accent:' + (items[i].accent || "#8891a6") + '">' +
+        escapeHtml(items[i].name) + '</button>').join("") + '</div>';
+}
+
 function editorBox(){
-  const mainIdx = [], accIdx = [];
-  draft.items.forEach((it, i) => (it.kind === "main" ? mainIdx : accIdx).push(i));
+  const items = draft.items;
+  if (draft.exIdx >= items.length) draft.exIdx = 0;
   const endTs = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
   const title = draft.editId ? "Редактирование тренировки" : "неделя " + (draft.week + 1) + " · день " + (draft.day + 1);
+  const st = restWorkStats(items);
 
-  const mainHtml = mainIdx.length ? mainIdx.map((i) => itemBlock(draft.items[i], i)).join("") : '<p class="muted">Нет основных движений.</p>';
-  const accHtml = accIdx.length
-    ? '<div class="exgroup__lbl exgroup__lbl--acc">Подсобка</div>' + accIdx.map((i) => itemBlock(draft.items[i], i)).join("")
-    : "";
+  let exBlock = '<p class="muted">Нет упражнений.</p>';
+  if (items.length){
+    const ex = items[draft.exIdx];
+    exBlock = '<div class="exblock" style="--accent:' + (ex.accent || "#8891a6") + '">' +
+      '<div class="exblock__name">' + escapeHtml(ex.name) + ' <span class="exblock__pos">' + (draft.exIdx + 1) + '/' + items.length + ' · ' + (ex.kind === "main" ? "основное" : "подсобка") + '</span></div>' +
+      ex.sets.map((s, si) => setRow(ex, draft.exIdx, s, si)).join("") +
+    '</div>' +
+    '<div class="expager">' +
+      '<button class="hbtn" data-act="exprev"' + (draft.exIdx <= 0 ? " disabled" : "") + '>← пред</button>' +
+      '<button class="hbtn" data-act="exnext"' + (draft.exIdx >= items.length - 1 ? " disabled" : "") + '>след →</button>' +
+    '</div>';
+  }
 
   return '<div class="factbar">' + escapeHtml(draft.programName || "программа") + ' · ' + title + '</div>' +
     '<section class="wsess">' +
@@ -285,26 +311,14 @@ function editorBox(){
         '<label class="ff"><span>Начало</span><input type="time" data-starttime value="' + (draft.start ? tsToHHMM(draft.start) : "") + '"></label>' +
         '<label class="ff"><span>Конец</span><input type="time" data-endtime value="' + escapeAttr(draft.endHHMM || "") + '"></label>' +
       '</div>' +
-      '<div class="wdur muted">Длительность: <b id="factDur">' + fmtDuration(durationMin(draft.start, endTs)) + '</b></div>' +
+      '<div class="wdur muted">Длит.: <b id="factDur">' + fmtDuration(durationMin(draft.start, endTs)) + '</b> · под нагрузкой <b>' + clock(st.workSec) + '</b> · отдых <b>' + clock(st.restSec) + '</b></div>' +
     '</section>' +
-    '<div class="exgroup__lbl">Основной блок</div>' + mainHtml +
-    accHtml +
+    exPills(items, "main") + exPills(items, "acc") +
+    exBlock +
     '<div class="toolbar" style="margin-top:14px">' +
       '<button class="primary" data-act="finish">' + (draft.editId ? "✓ Сохранить изменения" : "✓ Завершить тренировку") + '</button>' +
       '<button data-act="cancelfact">' + (draft.editId ? "Отмена" : "Отменить") + '</button>' +
     '</div>';
-}
-
-function itemBlock(it, idx){
-  const open = !!(draft.openSet && draft.openSet[idx]);
-  const filled = it.sets.filter((s) => s.w !== "" && s.w != null).length;
-  const head = '<button type="button" class="exhead' + (it.kind === "main" ? " exhead--main" : "") + '" data-act="toggleit" data-it="' + idx + '" style="--accent:' + (it.accent || "#8891a6") + '">' +
-    '<span class="exhead__name">' + escapeHtml(it.name) + '</span>' +
-    '<span class="exhead__meta">' + (filled ? filled + "/" : "") + it.sets.length + " " + plSets(it.sets.length) + ' <span class="exhead__chev">' + (open ? "▲" : "▼") + '</span></span>' +
-  '</button>';
-  if (!open) return '<div class="exitem" style="--accent:' + (it.accent || "#8891a6") + '">' + head + '</div>';
-  const sets = it.sets.map((s, si) => setRow(it, idx, s, si)).join("");
-  return '<div class="exitem is-open" style="--accent:' + (it.accent || "#8891a6") + '">' + head + '<div class="exitem__body">' + sets + '</div></div>';
 }
 
 function qOptions(sel){
@@ -313,11 +327,18 @@ function qOptions(sel){
     return '<option value="' + v + '"' + (String(sel) === String(v) ? " selected" : "") + '>' + v + ' — ' + q + '</option>';
   }).join("");
 }
-
 function errOptions(key, sel){
   const errors = getErrors();
   return '<option value="">ошибка…</option>' + (errors[key] || []).map((er) =>
     '<option value="' + er.id + '"' + (sel === er.id ? " selected" : "") + '>' + escapeHtml(er.name) + '</option>').join("");
+}
+
+function timerCtl(it, si, s){
+  if (!s.st) return '<button type="button" class="hbtn rtbtn" data-act="timerstart" data-it="' + it + '" data-si="' + si + '">▶ Старт подхода</button>';
+  if (!s.et) return '<button type="button" class="hbtn rtbtn rtbtn--stop" data-act="timerstop" data-it="' + it + '" data-si="' + si + '">■ Стоп</button>' +
+    ' <span class="rt rt--run" id="rt_' + it + '_' + si + '">' + clock((Date.now() - s.st) / 1000) + '</span>';
+  return '<span class="rt rt--done">⏱ ' + clock((s.et - s.st) / 1000) + '</span>' +
+    ' <button type="button" class="hbtn rtbtn" data-act="timerreset" data-it="' + it + '" data-si="' + si + '" aria-label="Сбросить">⟳</button>';
 }
 
 function setRow(it, idx, s, si){
@@ -340,6 +361,7 @@ function setRow(it, idx, s, si){
       '<label class="ff"><span>Повт</span><input type="number" inputmode="numeric" min="0" data-it="' + idx + '" data-si="' + si + '" data-field="reps" value="' + escapeAttr(s.reps) + '" placeholder="' + repsPlaceholder + '"></label>' +
       '<label class="ff"><span>Качество</span><select data-it="' + idx + '" data-si="' + si + '" data-field="q">' + qOptions(s.q) + '</select></label>' +
     '</div>' + chips + row2 +
+    '<div class="rtrow">' + timerCtl(idx, si, s) + '</div>' +
   '</div>';
 }
 
@@ -350,7 +372,9 @@ function historyBody(){
   return list.map((s) => {
     const open = openSession === s.id;
     const where = 'неделя ' + (s.week + 1) + (s.day != null ? ' · день ' + (s.day + 1) : '');
-    const extra = (s.durationMin != null ? ' · ' + fmtDuration(s.durationMin) : '') + (s.bw ? ' · вес ' + fmt(Number(s.bw)) + ' кг' : '');
+    const extra = (s.durationMin != null ? ' · ' + fmtDuration(s.durationMin) : '') +
+      (s.setsTimed ? ' · ⏱ ' + clock(s.workSec) + '/' + clock(s.restSec) : '') +
+      (s.bw ? ' · вес ' + fmt(Number(s.bw)) + ' кг' : '');
     const canEdit = Array.isArray(s.items);
     return '<div class="srow">' +
       '<div class="srow__head" data-act="opensession" data-id="' + s.id + '">' +
@@ -369,9 +393,9 @@ function sessionDetail(s){
   if (Array.isArray(s.items)){
     return '<div class="sdetail">' + s.items.map((it) =>
       '<div class="sline"><b>' + escapeHtml(it.name) + '</b>: ' + it.sets.map((st) =>
-        (st.w ? fmt(Number(st.w)) + " кг" : "—") + "×" + (st.reps || "—") + (st.q ? " (" + QUALITY[Number(st.q) - 1] + ")" : "")).join(", ") + '</div>').join("") + '</div>';
+        (st.w ? fmt(Number(st.w)) + " кг" : "—") + "×" + (st.reps || "—") + (st.q ? " (" + QUALITY[Number(st.q) - 1] + ")" : "") +
+        (st.st && st.et ? " ⏱" + clock((st.et - st.st) / 1000) : "")).join(", ") + '</div>').join("") + '</div>';
   }
-  // устаревший формат (entries-map)
   const errors = getErrors();
   const e = s.entries || {};
   return '<div class="sdetail">' + Object.keys(e).map((id) => {
@@ -385,15 +409,26 @@ function sessionDetail(s){
 }
 
 /* ───── Загрузка тренировки в редактор ───── */
-function openSet(items){ const o = {}; (items || []).forEach((it, i) => { if (it.kind === "main") o[i] = true; }); return o; }
-
 function sessionToDraft(s){
   return {
     editId: s.id, programId: s.programId, programName: s.programName,
     week: s.week, day: s.day, bw: s.bw != null ? s.bw : "",
     start: s.start || null, endHHMM: s.end ? tsToHHMM(s.end) : "",
-    items: deepCopy(s.items || []), openSet: openSet(s.items),
+    items: deepCopy(s.items || []), exIdx: 0,
   };
+}
+
+/* ───── Живой таймер активного подхода ───── */
+function manageTick(root){
+  if (timerInt){ clearInterval(timerInt); timerInt = null; }
+  if (tab !== "fact" || !draft || !draft.items) return;
+  const ex = draft.items[draft.exIdx];
+  if (!ex || !ex.sets.some((s) => s.st && !s.et)) return;
+  timerInt = setInterval(() => {
+    ex.sets.forEach((s, si) => {
+      if (s.st && !s.et){ const el = root.querySelector("#rt_" + draft.exIdx + "_" + si); if (el) el.textContent = clock((Date.now() - s.st) / 1000); }
+    });
+  }, 1000);
 }
 
 /* ───── События ───── */
@@ -415,11 +450,16 @@ function onClick(e, root){
   if (act === "tab"){ tab = btn.dataset.tab; renderJournal(root); return; }
   if (act === "week"){ weekIdx = Number(btn.dataset.wi); dayIdx = 0; renderJournal(root); return; }
   if (act === "day"){ dayIdx = Number(btn.dataset.di); renderJournal(root); return; }
-  if (act === "toggleit"){ const i = Number(btn.dataset.it); draft.openSet = draft.openSet || {}; draft.openSet[i] = !draft.openSet[i]; renderJournal(root); return; }
+  if (act === "goex"){ draft.exIdx = Number(btn.dataset.it); renderJournal(root); return; }
+  if (act === "exprev"){ if (draft.exIdx > 0) draft.exIdx--; renderJournal(root); return; }
+  if (act === "exnext"){ if (draft.exIdx < draft.items.length - 1) draft.exIdx++; renderJournal(root); return; }
+  if (act === "timerstart"){ const s = draft.items[Number(btn.dataset.it)].sets[Number(btn.dataset.si)]; s.st = Date.now(); s.et = null; renderJournal(root); return; }
+  if (act === "timerstop"){ draft.items[Number(btn.dataset.it)].sets[Number(btn.dataset.si)].et = Date.now(); renderJournal(root); return; }
+  if (act === "timerreset"){ const s = draft.items[Number(btn.dataset.it)].sets[Number(btn.dataset.si)]; delete s.st; delete s.et; renderJournal(root); return; }
   if (act === "start"){
     const p = activeProgram();
     const items = buildDayItems(p, maxesNow(), weekIdx, dayIdx);
-    draft = { programId: p.id, programName: p.name, week: weekIdx, day: dayIdx, bw: lastBodyweight(), start: Date.now(), endHHMM: "", items, openSet: openSet(items) };
+    draft = { programId: p.id, programName: p.name, week: weekIdx, day: dayIdx, bw: lastBodyweight(), start: Date.now(), endHHMM: "", items, exIdx: 0 };
     renderJournal(root); return;
   }
   if (act === "cancelfact"){ if (confirm(draft && draft.editId ? "Отменить правки?" : "Отменить тренировку без сохранения?")){ draft = null; renderJournal(root); } return; }
@@ -464,12 +504,14 @@ function finishSession(){
   const items = finalizeItems(draft.items);
   const end = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
   const bw = parseNum(draft.bw);
+  const stats = restWorkStats(items);
   const base = {
     programId: draft.programId, programName: draft.programName,
     week: draft.week, day: draft.day,
     bw: bw > 0 ? bw : null,
     start: draft.start || null, end: end || null, durationMin: durationMin(draft.start, end),
     items, volume: itemsVolume(items),
+    workSec: stats.workSec, restSec: stats.restSec, setsTimed: stats.setsTimed,
   };
   const list = getSessions();
   if (draft.editId){
@@ -480,7 +522,7 @@ function finishSession(){
     list.unshift({ id: "s" + Date.now(), ts: Date.now(), ...base });
     if (list.length > 200) list.length = 200;
     saveSessions(list);
-    if (bw > 0) set(KEYS.weight, addWeightEntry(get(KEYS.weight, []), bw, end || Date.now()));   // вес тела → в профиль
+    if (bw > 0) set(KEYS.weight, addWeightEntry(get(KEYS.weight, []), bw, end || Date.now()));
   }
   draft = null;
   autoApplied = false;

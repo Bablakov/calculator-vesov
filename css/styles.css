@@ -291,16 +291,24 @@ button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a
 .wdur{margin-top:10px; font-size:.85rem}
 .wdur b{color:var(--text); font-variant-numeric:tabular-nums}
 
-/* ── Журнал ФАКТ: блоки (основной/подсобка) и аккордеон упражнений ── */
+/* ── Журнал ФАКТ: блоки (основной/подсобка), пейджер упражнений, таймер ── */
 .exgroup__lbl{font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:14px 2px 8px}
 .exgroup__lbl--acc{color:var(--accent)}
-.exitem{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:12px; margin-bottom:8px; overflow:hidden}
-.exhead{width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; background:transparent; border:0; color:var(--text); cursor:pointer; text-align:left}
-.exhead__name{font-weight:600}
-.exhead--main .exhead__name{font-weight:700}
-.exhead__meta{font-size:.8rem; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums}
-.exhead__chev{color:var(--accent)}
-.exitem__body{padding:0 12px 12px}
+.expills{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px}
+.expill{padding:7px 12px; border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:999px; background:var(--panel); color:var(--text); cursor:pointer; font-size:.85rem}
+.expill.is-active{background:color-mix(in srgb, var(--accent) 18%, var(--panel)); border-color:var(--accent)}
+.exblock{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:12px; padding:12px}
+.exblock__name{font-weight:700; margin-bottom:8px}
+.exblock__pos{font-size:.74rem; color:var(--muted); font-weight:600}
+.expager{display:flex; gap:8px; margin-top:8px}
+.expager .hbtn{flex:1}
+.expager .hbtn[disabled]{opacity:.4}
+.rtrow{margin-top:8px; display:flex; align-items:center; gap:8px}
+.rt{font-variant-numeric:tabular-nums; font-weight:700}
+.rt--run{color:var(--accent)}
+.rt--done{color:var(--muted)}
+.rtbtn{font-size:.82rem}
+.rtbtn--stop{border-color:var(--accent); color:var(--accent)}
 .fset__row2--acc{grid-template-columns:1fr}
 
 /* ── Отчёты ── */

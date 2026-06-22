@@ -43,6 +43,14 @@ export function liftTonnage(sessions){
   return t;
 }
 
+// Темп: среднее время под нагрузкой/отдыха по тренировкам с таймером.
+export function tempoStats(sessions){
+  let work = 0, rest = 0, sets = 0, n = 0;
+  (sessions || []).forEach((s) => { if (s.setsTimed){ work += s.workSec || 0; rest += s.restSec || 0; sets += s.setsTimed; n++; } });
+  const rests = Math.max(0, sets - n);   // отдыхов на 1 меньше, чем подходов, в каждой тренировке
+  return { sessions: n, totalWork: work, totalRest: rest, avgWorkPerSet: sets ? Math.round(work / sets) : 0, avgRestPerSet: rests ? Math.round(rest / rests) : 0 };
+}
+
 // Среднее качество подходов (1–5), null если оценок нет.
 export function qualityAvg(sessions){
   let sum = 0, n = 0;
@@ -65,13 +73,16 @@ export function renderReports(root){
   }
   const d = durationStats(sessions), v = volumeStats(sessions), f = weeklyFrequency(sessions), q = qualityAvg(sessions);
   const ton = liftTonnage(sessions);
+  const tp = tempoStats(sessions);
 
   const cards =
     card("Тренировок", String(v.count), "всего завершено") +
     card("Средняя длительность", fmtDuration(d.avg), d.count ? "от " + fmtDuration(d.min) + " до " + fmtDuration(d.max) : "нет данных о времени") +
     card("Частота", f + " /нед", "в среднем тренировок в неделю") +
     card("Средний объём", fmt(v.avg) + " кг", "за тренировку · всего " + fmt(v.total) + " кг") +
-    card("Качество", q == null ? "—" : q + " / 5", "средняя оценка подходов");
+    card("Качество", q == null ? "—" : q + " / 5", "средняя оценка подходов") +
+    (tp.sessions ? card("Отдых (сред.)", fmtSec(tp.avgRestPerSet), "между подходами") +
+      card("Под нагрузкой", fmtSec(tp.avgWorkPerSet), "в среднем за подход") : "");
 
   const maxTon = Math.max(1, ...LIFTS.map((l) => ton[l.key] || 0));
   const bars = LIFTS.map((l) => {
@@ -88,6 +99,12 @@ export function renderReports(root){
     '<div class="rep-grid">' + cards + '</div>' +
     '<section class="prof-card"><h3 class="prof-h">Тоннаж по движениям</h3>' + bars + '</section>' +
     '<p class="muted" style="margin-top:10px">Данные берутся из завершённых тренировок (вкладка «Факт» в Журнале).</p>';
+}
+
+function fmtSec(sec){
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m ? m + ":" + String(s).padStart(2, "0") : s + " с";
 }
 
 function card(label, value, sub){

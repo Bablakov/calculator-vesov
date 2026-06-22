@@ -1,6 +1,6 @@
 /* Service worker: офлайн-кэш «оболочки» приложения.
    При изменении файлов поднимите версию в CACHE — старый кэш очистится. */
-const CACHE = "pct-v14";
+const CACHE = "pct-v15";
 const ASSETS = [
   ".",
   "index.html",

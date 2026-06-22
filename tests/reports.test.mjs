@@ -1,6 +1,6 @@
 // Тесты логики отчётов: длительность, объём, частота, тоннаж, качество.
 import { eq } from "./_assert.mjs";
-import { durationStats, volumeStats, weeklyFrequency, liftTonnage, qualityAvg } from "../js/reports.js";
+import { durationStats, volumeStats, weeklyFrequency, liftTonnage, qualityAvg, tempoStats } from "../js/reports.js";
 
 console.log("reports:");
 
@@ -24,3 +24,7 @@ eq(liftTonnage(S), { squat: 860, bench: 300 }, "тоннаж: присед 100×
 
 eq(qualityAvg(S), 4, "качество: (4+3+5)/3 = 4.0");
 eq(qualityAvg([{ entries: {} }]), null, "нет оценок → null");
+
+const T = [ { setsTimed: 2, workSec: 50, restSec: 60 }, { setsTimed: 3, workSec: 90, restSec: 120 } ];
+eq(tempoStats(T), { sessions: 2, totalWork: 140, totalRest: 180, avgWorkPerSet: 28, avgRestPerSet: 60 }, "темп: ср. работа 28с/подх, отдых 60с");
+eq(tempoStats([{ volume: 100 }]), { sessions: 0, totalWork: 0, totalRest: 0, avgWorkPerSet: 0, avgRestPerSet: 0 }, "без таймера → нули");

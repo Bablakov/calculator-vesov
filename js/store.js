@@ -30,4 +30,6 @@ export const KEYS = {
   admErrors: "pct.admin.errors.v1",   // ERRORS (тексты типовых ошибок)
   admCatalog:"pct.admin.catalog.v1",  // CATALOG (каталог подсобок)
   admFix:    "pct.admin.fix.v1",      // PROBLEM_FIX (связи «проблема → подсобки»)
+  admWeeks:  "pct.admin.weeks.v1",    // WEEKS (матрица недель базового шаблона)
+  admAcc:    "pct.admin.accdef.v1",   // ACC_DEFAULTS (базовые подсобки по движениям)
 };

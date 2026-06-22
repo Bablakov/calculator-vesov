@@ -1,6 +1,6 @@
 // Тесты логики журнала: план на день, объём тренировки, id подхода.
 import { eq } from "./_assert.mjs";
-import { planForDay, sessionVolume, flattenSlots, nextSlot, durationMin, buildDayItems, itemsVolume, finalizeItems } from "../js/journal.js";
+import { planForDay, sessionVolume, flattenSlots, nextSlot, durationMin, buildDayItems, itemsVolume, finalizeItems, restWorkStats } from "../js/journal.js";
 
 console.log("journal:");
 
@@ -70,3 +70,11 @@ eq([fin[0].sets[0].w, fin[0].sets[0].reps], ["150", "5"], "main пустые →
 eq([fin[0].sets[1].w, fin[0].sets[1].reps], ["165", "2"], "введённые значения сохраняются");
 eq(fin[0].sets[0].q, "", "качество по умолчанию не подставляется");
 eq([fin[1].sets[0].w, fin[1].sets[0].reps], ["", "12"], "acc: веса нет (пусто), повт ← план 12");
+
+// таймер: время под нагрузкой и отдыха из меток st/et
+const tItems = [{ kind: "main", sets: [
+  { st: 1000, et: 31000 },        // работа 30 с
+  { st: 91000, et: 111000 },      // отдых 60 с (91-31), работа 20 с
+] }];
+eq(restWorkStats(tItems), { setsTimed: 2, workSec: 50, restSec: 60 }, "таймер: работа 50 с, отдых 60 с");
+eq(restWorkStats([{ kind: "main", sets: [ { w: "100", reps: "5" } ] }]), { setsTimed: 0, workSec: 0, restSec: 0 }, "без меток таймера → нули");
