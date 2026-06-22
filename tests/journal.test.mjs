@@ -1,6 +1,6 @@
 // Тесты логики журнала: план на день, объём тренировки, id подхода.
 import { eq } from "./_assert.mjs";
-import { planForDay, sessionVolume, factId, flattenSlots, nextSlot, durationMin } from "../js/journal.js";
+import { planForDay, sessionVolume, flattenSlots, nextSlot, durationMin, buildDayItems, itemsVolume, finalizeItems } from "../js/journal.js";
 
 console.log("journal:");
 
@@ -30,8 +30,6 @@ eq(sessionVolume({ "squat.0": { w: "100", reps: "5" }, "bench.0": { w: "60", rep
 eq(sessionVolume({ "x": { w: "100" } }), 0, "без повторов — не считается");
 eq(sessionVolume({}), 0, "пусто → 0");
 
-eq(factId("squat", 2), "squat.2", "factId");
-
 // автопрогрессия: плоский список слотов и «следующая тренировка»
 const p2 = { id: "pp", weeks: [ { days: [{}, {}] }, { days: [{}, {}] } ] }; // 2 недели × 2 дня = 4 слота
 eq(flattenSlots(p2).length, 4, "flattenSlots: 4 слота");
@@ -47,3 +45,28 @@ eq(nextSlot(p2, [{ programId: "other" }]).index, 0, "чужие программ
 eq(durationMin(0, 1000), null, "нет начала (0) → null");
 eq(durationMin(600000, 2400000), 30, "10:00→40:00 = 30 минут");
 eq(durationMin(2400000, 600000), null, "конец раньше начала → null");
+
+// рабочие элементы дня (основные + подсобки как отдельные упражнения)
+const progAcc = { discipline: "pl", weeks: [ { kind: "x", days: [
+  { name: "Д1", exercises: [ { key: "squat", sets: [ { pct: 50, reps: 5 }, { pct: 100, reps: 1 } ], acc: [ { name: "Гиперэкстензии", sets: 3, reps: 12 } ] } ] },
+] } ] };
+const items = buildDayItems(progAcc, { squat: 200 }, 0, 0);
+eq(items.length, 2, "buildDayItems: 1 основное + 1 подсобка = 2 элемента");
+eq([items[0].kind, items[1].kind], ["main", "acc"], "порядок: основное, затем подсобка");
+eq([items[0].sets.length, items[1].sets.length], [2, 3], "подходы: основное 2, подсобка 3 (из sets)");
+eq([items[0].sets[1].planExact, items[0].sets[1].planPlate], [200, 200], "план основного: 100% от 200 = 200");
+eq(items[1].sets[0].planReps, 12, "план подсобки: повторы 12");
+
+// объём по элементам
+eq(itemsVolume([{ kind: "main", sets: [ { w: "100", reps: "5" }, { w: "200", reps: "1" } ] }, { kind: "acc", sets: [ { w: "", reps: "" } ] }]), 700, "объём: 100×5 + 200×1 = 700");
+eq(itemsVolume([]), 0, "объём пусто → 0");
+
+// подстановка плана вместо пустых вес/повт; качество не трогаем
+const fin = finalizeItems([
+  { kind: "main", sets: [ { planPlate: 150, planReps: 5, w: "", reps: "", q: "", note: "" }, { planPlate: 160, planReps: 3, w: "165", reps: "2", q: "4", note: "тяжело" } ] },
+  { kind: "acc", sets: [ { planReps: 12, w: "", reps: "", q: "" } ] },
+]);
+eq([fin[0].sets[0].w, fin[0].sets[0].reps], ["150", "5"], "main пустые → план («на снарядах» 150, повт 5)");
+eq([fin[0].sets[1].w, fin[0].sets[1].reps], ["165", "2"], "введённые значения сохраняются");
+eq(fin[0].sets[0].q, "", "качество по умолчанию не подставляется");
+eq([fin[1].sets[0].w, fin[1].sets[0].reps], ["", "12"], "acc: веса нет (пусто), повт ← план 12");

@@ -1,6 +1,7 @@
 // Раздел «Журнал»: ПЛАН (просмотр) + ФАКТ (дневник) + история тренировок.
-// Навигация по неделям и дням; автопрогрессия (какая тренировка сейчас);
-// вес тела и тайминг — внутри самой тренировки.
+// ФАКТ: основной блок (база) + блок подсобок, упражнения раскрываются (аккордеон),
+// у каждого свои подходы. Автопрогрессия, вес тела и тайминг — в тренировке.
+// Не вписанные вес/повторы по умолчанию = план (из программы); качество/заметки — пустые.
 import { get, set, KEYS } from "./store.js";
 import { LIFT_BY_KEY, QUALITY } from "./config.js";
 import { getErrors } from "./contentstore.js";
@@ -30,7 +31,50 @@ export function planForDay(program, maxes, weekIndex, dayIndex){
   });
 }
 
-export function factId(key, si){ return key + "." + si; }
+// «Рабочие элементы» дня для тренировки: основные движения + подсобки (как отдельные упражнения).
+export function buildDayItems(program, maxes, weekIndex, dayIndex){
+  const plan = planForDay(program, maxes, weekIndex, dayIndex);
+  const items = [];
+  plan.forEach((ex) => {
+    items.push({
+      kind: "main", key: ex.key, name: ex.name, accent: ex.accent,
+      sets: ex.sets.map((s) => ({ planPct: s.pct, planExact: s.exact, planPlate: s.plate, planReps: s.reps, w: "", reps: "", q: "", err: "", note: "" })),
+    });
+    (ex.acc || []).forEach((a) => {
+      const n = Math.max(1, Number(a.sets) || 1);
+      items.push({
+        kind: "acc", name: a.name, accent: ex.accent,
+        sets: Array.from({ length: n }, () => ({ planReps: a.reps, w: "", reps: "", q: "", note: "" })),
+      });
+    });
+  });
+  return items;
+}
+
+// Объём по элементам: Σ (факт.вес × факт.повторы), кг.
+export function itemsVolume(items){
+  let kg = 0;
+  (items || []).forEach((it) => (it.sets || []).forEach((s) => {
+    const w = Number(s.w), r = Number(s.reps);
+    if (Number.isFinite(w) && Number.isFinite(r) && w > 0 && r > 0) kg += w * r;
+  }));
+  return Math.round(kg);
+}
+
+// Подстановка плана вместо пустых: вес (для основных = «на снарядах»), повторы (если число).
+// Качество/ошибку/заметку НЕ трогаем.
+export function finalizeItems(items){
+  return (items || []).map((it) => ({
+    ...it,
+    sets: it.sets.map((s) => {
+      const w = (s.w !== "" && s.w != null) ? s.w
+        : (it.kind === "main" && Number(s.planPlate) > 0 ? String(s.planPlate) : s.w);
+      const reps = (s.reps !== "" && s.reps != null) ? s.reps
+        : (typeof s.planReps === "number" ? String(s.planReps) : s.reps);
+      return { ...s, w, reps };
+    }),
+  }));
+}
 
 // Все «слоты» программы по порядку: [{week, day}, …] — для прогрессии.
 export function flattenSlots(program){
@@ -55,7 +99,7 @@ export function durationMin(startTs, endTs){
   return m >= 0 ? m : null;
 }
 
-// Объём тренировки: Σ (факт.вес × факт.повторы) по заполненным подходам, кг.
+// Объём из устаревшего формата (entries-map) — для старых записей истории.
 export function sessionVolume(entries){
   let kg = 0;
   for (const id in entries){
@@ -74,13 +118,16 @@ function hhmmToTs(hhmm, baseTs){
   if (Number.isNaN(h) || Number.isNaN(m)) return null;
   const d = new Date(baseTs || Date.now()); d.setHours(h, m, 0, 0);
   let ts = d.getTime();
-  if (baseTs && ts < baseTs) ts += 24 * 3600 * 1000;   // конец за полночь
+  if (baseTs && ts < baseTs) ts += 24 * 3600 * 1000;
   return ts;
 }
+
+function plSets(n){ const a = n % 100, b = n % 10; if (a > 10 && a < 20) return "подходов"; if (b === 1) return "подход"; if (b >= 2 && b <= 4) return "подхода"; return "подходов"; }
 
 /* ───── Хранение ───── */
 function getSessions(){ return get(KEYS.sessions, []); }
 function saveSessions(list){ set(KEYS.sessions, list); }
+function deepCopy(x){ return JSON.parse(JSON.stringify(x)); }
 
 function lastBodyweight(){
   const w = get(KEYS.weight, []);
@@ -93,9 +140,9 @@ function lastBodyweight(){
 let tab = "plan";          // plan | fact | history
 let weekIdx = 0;
 let dayIdx = 0;
-let autoApplied = false;   // авто-выбор недели/дня по прогрессии (один раз, до ручной навигации)
-let draft = null;          // активная тренировка: { programId, week, day, bw, start, endHHMM, entries }
-let openSession = null;
+let autoApplied = false;
+let draft = null;          // активная/редактируемая тренировка
+let openSession = null;    // раскрытая запись истории (просмотр)
 
 export function initJournal(root){
   autoApplied = false;
@@ -134,7 +181,6 @@ export function renderJournal(root){
       '<a class="btn-link" href="#programs">→ К программам</a></div>';
     return;
   }
-  // авто-выбор следующей тренировки (пока пользователь сам не переключил неделю/день)
   if (!autoApplied){
     const ns = nextSlot(program, getSessions());
     weekIdx = ns.week; dayIdx = ns.day; autoApplied = true;
@@ -207,98 +253,147 @@ function planBody(program){
 
 /* ───── ФАКТ ───── */
 function factBody(program){
-  const isActive = draft && draft.programId === program.id;
-  if (!isActive){
-    const ns = nextSlot(program, getSessions());
-    return weekPills(program) + dayPills(program) +
-      '<div class="startbox">' +
-        '<p class="nexttrain">Следующая тренировка: <b>#' + (ns.index + 1) + '</b> · неделя ' + (weekIdx + 1) + ' · ' + escapeHtml(dayName(program, weekIdx, dayIdx)) + (ns.cycle ? ' <span class="muted">(круг ' + (ns.cycle + 1) + ')</span>' : '') + '</p>' +
-        '<p class="muted">Выбрать другую — переключите неделю/день выше.</p>' +
-        '<button class="primary" data-act="start">▶ Начать тренировку</button>' +
-      '</div>';
-  }
-  const plan = planForDay(program, maxesNow(), draft.week, draft.day);
-  const errors = getErrors();
-  const errOptsFor = (key) => '<option value="">ошибка…</option>' +
-    (errors[key] || []).map((er) => '<option value="' + er.id + '">' + escapeHtml(er.name) + '</option>').join("");
-  const qOpts = '<option value="">оценка</option>' + QUALITY.map((q, i) => '<option value="' + (i + 1) + '">' + (i + 1) + ' — ' + q + '</option>').join("");
+  if (!draft) return startBox(program);
+  return editorBox();
+}
 
-  const blocks = plan.map((ex) =>
-    '<div class="progex" style="--accent:' + ex.accent + '">' +
-      '<div class="progex__name">' + escapeHtml(ex.name) + '</div>' +
-      ex.sets.map((s) => factSet(ex.key, s, qOpts, errOptsFor(ex.key))).join("") +
-      accList(ex.acc) +
-    '</div>').join("");
-
-  const endTs = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
-
-  return '<div class="factbar">Неделя ' + (draft.week + 1) + ' · ' + escapeHtml(dayName(program, draft.week, draft.day)) + ' · «' + escapeHtml(program.name) + '»</div>' +
-    '<section class="wsess">' +
-      '<label class="ff"><span>Вес тела, кг</span><input type="number" inputmode="decimal" step="0.1" min="0" data-bw value="' + escapeAttr(draft.bw) + '" placeholder="' + escapeAttr(lastBodyweight()) + '"></label>' +
-      '<div class="wtime">' +
-        '<span class="wtime__lbl">Начало <b>' + (draft.start ? tsToHHMM(draft.start) : "—") + '</b></span>' +
-        '<label class="wtime__end">Конец <input type="time" data-endtime value="' + escapeAttr(draft.endHHMM || "") + '"></label>' +
-        '<span class="wtime__dur">Длит.: <b id="factDur">' + fmtDuration(durationMin(draft.start, endTs)) + '</b></span>' +
-      '</div>' +
-      '<p class="muted wsess__hint">Конец проставится автоматически при «Завершить», если оставить пустым.</p>' +
-    '</section>' +
-    '<div class="prog">' + (blocks || '<p class="muted">В этом дне нет упражнений.</p>') + '</div>' +
-    '<div class="toolbar" style="margin-top:14px">' +
-      '<button class="primary" data-act="finish">✓ Завершить тренировку</button>' +
-      '<button data-act="cancelfact">Отменить</button>' +
+function startBox(program){
+  const ns = nextSlot(program, getSessions());
+  return weekPills(program) + dayPills(program) +
+    '<div class="startbox">' +
+      '<p class="nexttrain">Следующая тренировка: <b>#' + (ns.index + 1) + '</b> · неделя ' + (weekIdx + 1) + ' · ' + escapeHtml(dayName(program, weekIdx, dayIdx)) + (ns.cycle ? ' <span class="muted">(круг ' + (ns.cycle + 1) + ')</span>' : '') + '</p>' +
+      '<p class="muted">Выбрать другую — переключите неделю/день выше.</p>' +
+      '<button class="primary" data-act="start">▶ Начать тренировку</button>' +
     '</div>';
 }
 
-function factSet(key, s, qOpts, errOpts){
-  const id = factId(key, s.si);
-  const rec = (draft.entries && draft.entries[id]) || {};
-  const chips = plateOptions(s.exact).map((v) => '<button type="button" class="chip" data-chip="' + id + '" data-w="' + v + '">' + fmt(v) + '</button>').join("");
-  const qSel = qOpts.replace('value="' + rec.q + '"', 'value="' + rec.q + '" selected');
-  const errSel = rec.err ? errOpts.replace('value="' + rec.err + '"', 'value="' + rec.err + '" selected') : errOpts;
+function editorBox(){
+  const mainIdx = [], accIdx = [];
+  draft.items.forEach((it, i) => (it.kind === "main" ? mainIdx : accIdx).push(i));
+  const endTs = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
+  const title = draft.editId ? "Редактирование тренировки" : "неделя " + (draft.week + 1) + " · день " + (draft.day + 1);
+
+  const mainHtml = mainIdx.length ? mainIdx.map((i) => itemBlock(draft.items[i], i)).join("") : '<p class="muted">Нет основных движений.</p>';
+  const accHtml = accIdx.length
+    ? '<div class="exgroup__lbl exgroup__lbl--acc">Подсобка</div>' + accIdx.map((i) => itemBlock(draft.items[i], i)).join("")
+    : "";
+
+  return '<div class="factbar">' + escapeHtml(draft.programName || "программа") + ' · ' + title + '</div>' +
+    '<section class="wsess">' +
+      '<div class="wsess__row">' +
+        '<label class="ff"><span>Вес тела, кг</span><input type="number" inputmode="decimal" step="0.1" min="0" data-bw value="' + escapeAttr(draft.bw) + '" placeholder="' + escapeAttr(lastBodyweight()) + '"></label>' +
+        '<label class="ff"><span>Начало</span><input type="time" data-starttime value="' + (draft.start ? tsToHHMM(draft.start) : "") + '"></label>' +
+        '<label class="ff"><span>Конец</span><input type="time" data-endtime value="' + escapeAttr(draft.endHHMM || "") + '"></label>' +
+      '</div>' +
+      '<div class="wdur muted">Длительность: <b id="factDur">' + fmtDuration(durationMin(draft.start, endTs)) + '</b></div>' +
+    '</section>' +
+    '<div class="exgroup__lbl">Основной блок</div>' + mainHtml +
+    accHtml +
+    '<div class="toolbar" style="margin-top:14px">' +
+      '<button class="primary" data-act="finish">' + (draft.editId ? "✓ Сохранить изменения" : "✓ Завершить тренировку") + '</button>' +
+      '<button data-act="cancelfact">' + (draft.editId ? "Отмена" : "Отменить") + '</button>' +
+    '</div>';
+}
+
+function itemBlock(it, idx){
+  const open = !!(draft.openSet && draft.openSet[idx]);
+  const filled = it.sets.filter((s) => s.w !== "" && s.w != null).length;
+  const head = '<button type="button" class="exhead' + (it.kind === "main" ? " exhead--main" : "") + '" data-act="toggleit" data-it="' + idx + '" style="--accent:' + (it.accent || "#8891a6") + '">' +
+    '<span class="exhead__name">' + escapeHtml(it.name) + '</span>' +
+    '<span class="exhead__meta">' + (filled ? filled + "/" : "") + it.sets.length + " " + plSets(it.sets.length) + ' <span class="exhead__chev">' + (open ? "▲" : "▼") + '</span></span>' +
+  '</button>';
+  if (!open) return '<div class="exitem" style="--accent:' + (it.accent || "#8891a6") + '">' + head + '</div>';
+  const sets = it.sets.map((s, si) => setRow(it, idx, s, si)).join("");
+  return '<div class="exitem is-open" style="--accent:' + (it.accent || "#8891a6") + '">' + head + '<div class="exitem__body">' + sets + '</div></div>';
+}
+
+function qOptions(sel){
+  return '<option value="">оценка</option>' + QUALITY.map((q, i) => {
+    const v = i + 1;
+    return '<option value="' + v + '"' + (String(sel) === String(v) ? " selected" : "") + '>' + v + ' — ' + q + '</option>';
+  }).join("");
+}
+
+function errOptions(key, sel){
+  const errors = getErrors();
+  return '<option value="">ошибка…</option>' + (errors[key] || []).map((er) =>
+    '<option value="' + er.id + '"' + (sel === er.id ? " selected" : "") + '>' + escapeHtml(er.name) + '</option>').join("");
+}
+
+function setRow(it, idx, s, si){
+  const planLine = it.kind === "main"
+    ? 'Подход ' + (si + 1) + ' · <b>' + s.planPct + '%</b> · план ' + (s.planExact ? fmt(s.planExact) + ' кг' : '—') + ' · ' + (s.planReps === "макс" ? "макс" : s.planReps + " раз")
+    : 'Подход ' + (si + 1) + ' · план ' + (s.planReps != null ? (s.planReps === "макс" ? "макс" : s.planReps + " раз") : "—");
+  const wPlaceholder = it.kind === "main" && s.planPlate ? fmt(s.planPlate) : "";
+  const repsPlaceholder = s.planReps === "макс" ? "макс" : (s.planReps != null ? s.planReps : "");
+  const chips = (it.kind === "main" && s.planExact)
+    ? '<div class="chips">' + plateOptions(s.planExact).map((v) => '<button type="button" class="chip" data-chip="' + idx + '_' + si + '" data-w="' + v + '">' + fmt(v) + '</button>').join("") + '</div>'
+    : "";
+  const row2 = it.kind === "main"
+    ? '<div class="fset__row2"><select data-it="' + idx + '" data-si="' + si + '" data-field="err">' + errOptions(it.key, s.err) + '</select>' +
+      '<input data-it="' + idx + '" data-si="' + si + '" data-field="note" value="' + escapeAttr(s.note) + '" placeholder="заметка"></div>'
+    : '<div class="fset__row2 fset__row2--acc"><input data-it="' + idx + '" data-si="' + si + '" data-field="note" value="' + escapeAttr(s.note) + '" placeholder="заметка"></div>';
   return '<div class="fset">' +
-    '<div class="fset__plan">Подход ' + (s.si + 1) + ' · <b>' + s.pct + '%</b> · план ' + (s.exact ? fmt(s.exact) + ' кг' : '—') + ' · ' + (s.reps === "макс" ? "макс" : s.reps + " раз") + '</div>' +
+    '<div class="fset__plan">' + planLine + '</div>' +
     '<div class="fset__row">' +
-      '<label class="ff"><span>Вес</span><input type="number" inputmode="decimal" step="0.5" min="0" data-fact="' + id + '" data-field="w" value="' + escapeAttr(rec.w) + '" placeholder="' + (s.exact ? fmt(s.plate) : "") + '"></label>' +
-      '<label class="ff"><span>Повт</span><input type="number" inputmode="numeric" min="0" data-fact="' + id + '" data-field="reps" value="' + escapeAttr(rec.reps) + '" placeholder="' + (s.reps === "макс" ? "макс" : s.reps) + '"></label>' +
-      '<label class="ff"><span>Качество</span><select data-fact="' + id + '" data-field="q">' + qSel + '</select></label>' +
-    '</div>' +
-    '<div class="chips">' + chips + '</div>' +
-    '<div class="fset__row2">' +
-      '<select data-fact="' + id + '" data-field="err">' + errSel + '</select>' +
-      '<input data-fact="' + id + '" data-field="note" value="' + escapeAttr(rec.note) + '" placeholder="заметка (необязательно)">' +
-    '</div>' +
+      '<label class="ff"><span>Вес</span><input type="number" inputmode="decimal" step="0.5" min="0" data-it="' + idx + '" data-si="' + si + '" data-field="w" value="' + escapeAttr(s.w) + '" placeholder="' + wPlaceholder + '"></label>' +
+      '<label class="ff"><span>Повт</span><input type="number" inputmode="numeric" min="0" data-it="' + idx + '" data-si="' + si + '" data-field="reps" value="' + escapeAttr(s.reps) + '" placeholder="' + repsPlaceholder + '"></label>' +
+      '<label class="ff"><span>Качество</span><select data-it="' + idx + '" data-si="' + si + '" data-field="q">' + qOptions(s.q) + '</select></label>' +
+    '</div>' + chips + row2 +
   '</div>';
 }
 
 /* ───── История ───── */
 function historyBody(){
   const list = getSessions();
-  const errors = getErrors();
   if (!list.length) return '<p class="muted">Пока нет завершённых тренировок.</p>';
   return list.map((s) => {
     const open = openSession === s.id;
-    let detail = "";
-    if (open){
-      detail = '<div class="sdetail">' + Object.keys(s.entries).map((id) => {
-        const e = s.entries[id]; const key = id.split(".")[0];
-        const er = (errors[key] || []).find((x) => x.id === e.err);
-        return '<div class="sline">' + (LIFT_BY_KEY[key] ? LIFT_BY_KEY[key].short : key) + ': ' +
-          (e.w ? fmt(Number(e.w)) + ' кг' : '—') + ' × ' + (e.reps || '—') +
-          (e.q ? ' · ' + QUALITY[Number(e.q) - 1] : '') +
-          (er ? ' · ' + escapeHtml(er.name) : '') +
-          (e.note ? ' · «' + escapeHtml(e.note) + '»' : '') + '</div>';
-      }).join("") + '</div>';
-    }
     const where = 'неделя ' + (s.week + 1) + (s.day != null ? ' · день ' + (s.day + 1) : '');
     const extra = (s.durationMin != null ? ' · ' + fmtDuration(s.durationMin) : '') + (s.bw ? ' · вес ' + fmt(Number(s.bw)) + ' кг' : '');
+    const canEdit = Array.isArray(s.items);
     return '<div class="srow">' +
       '<div class="srow__head" data-act="opensession" data-id="' + s.id + '">' +
         '<div><b>' + escapeHtml(s.programName) + '</b> · ' + where + '</div>' +
         '<div class="srow__meta">' + fmtDateTime(s.ts) + ' · Σ ' + fmt(s.volume) + ' кг' + extra + '</div>' +
-      '</div>' + detail +
-      '<div class="srow__act"><button class="hbtn hbtn--del" data-act="delsession" data-id="' + s.id + '">Удалить</button></div>' +
+      '</div>' + (open ? sessionDetail(s) : "") +
+      '<div class="srow__act">' +
+        (canEdit ? '<button class="hbtn" data-act="editsession" data-id="' + s.id + '">Изменить</button>' : '') +
+        '<button class="hbtn hbtn--del" data-act="delsession" data-id="' + s.id + '">Удалить</button>' +
+      '</div>' +
     '</div>';
   }).join("");
+}
+
+function sessionDetail(s){
+  if (Array.isArray(s.items)){
+    return '<div class="sdetail">' + s.items.map((it) =>
+      '<div class="sline"><b>' + escapeHtml(it.name) + '</b>: ' + it.sets.map((st) =>
+        (st.w ? fmt(Number(st.w)) + " кг" : "—") + "×" + (st.reps || "—") + (st.q ? " (" + QUALITY[Number(st.q) - 1] + ")" : "")).join(", ") + '</div>').join("") + '</div>';
+  }
+  // устаревший формат (entries-map)
+  const errors = getErrors();
+  const e = s.entries || {};
+  return '<div class="sdetail">' + Object.keys(e).map((id) => {
+    const rec = e[id]; const key = id.split(".")[0];
+    const er = (errors[key] || []).find((x) => x.id === rec.err);
+    return '<div class="sline">' + (LIFT_BY_KEY[key] ? LIFT_BY_KEY[key].short : key) + ': ' +
+      (rec.w ? fmt(Number(rec.w)) + " кг" : "—") + " × " + (rec.reps || "—") +
+      (rec.q ? " · " + QUALITY[Number(rec.q) - 1] : "") + (er ? " · " + escapeHtml(er.name) : "") +
+      (rec.note ? " · «" + escapeHtml(rec.note) + "»" : "") + '</div>';
+  }).join("") + '</div>';
+}
+
+/* ───── Загрузка тренировки в редактор ───── */
+function openSet(items){ const o = {}; (items || []).forEach((it, i) => { if (it.kind === "main") o[i] = true; }); return o; }
+
+function sessionToDraft(s){
+  return {
+    editId: s.id, programId: s.programId, programName: s.programName,
+    week: s.week, day: s.day, bw: s.bw != null ? s.bw : "",
+    start: s.start || null, endHHMM: s.end ? tsToHHMM(s.end) : "",
+    items: deepCopy(s.items || []), openSet: openSet(s.items),
+  };
 }
 
 /* ───── События ───── */
@@ -307,37 +402,54 @@ function onClick(e, root){
   if (!btn) return;
 
   if (btn.classList.contains("chip")){
-    const inp = root.querySelector('input[data-fact="' + btn.dataset.chip + '"][data-field="w"]');
-    if (inp){ inp.value = btn.dataset.w; setEntry(btn.dataset.chip, "w", btn.dataset.w); }
+    if (!draft) return;
+    const [it, si] = btn.dataset.chip.split("_").map(Number);
+    if (draft.items[it] && draft.items[it].sets[si]){
+      draft.items[it].sets[si].w = btn.dataset.w;
+      const inp = root.querySelector('input[data-it="' + it + '"][data-si="' + si + '"][data-field="w"]');
+      if (inp) inp.value = btn.dataset.w;
+    }
     return;
   }
   const act = btn.dataset.act;
   if (act === "tab"){ tab = btn.dataset.tab; renderJournal(root); return; }
   if (act === "week"){ weekIdx = Number(btn.dataset.wi); dayIdx = 0; renderJournal(root); return; }
   if (act === "day"){ dayIdx = Number(btn.dataset.di); renderJournal(root); return; }
+  if (act === "toggleit"){ const i = Number(btn.dataset.it); draft.openSet = draft.openSet || {}; draft.openSet[i] = !draft.openSet[i]; renderJournal(root); return; }
   if (act === "start"){
     const p = activeProgram();
-    draft = { programId: p.id, week: weekIdx, day: dayIdx, bw: lastBodyweight(), start: Date.now(), endHHMM: "", entries: {} };
+    const items = buildDayItems(p, maxesNow(), weekIdx, dayIdx);
+    draft = { programId: p.id, programName: p.name, week: weekIdx, day: dayIdx, bw: lastBodyweight(), start: Date.now(), endHHMM: "", items, openSet: openSet(items) };
     renderJournal(root); return;
   }
-  if (act === "cancelfact"){ if (confirm("Отменить тренировку без сохранения?")){ draft = null; renderJournal(root); } return; }
+  if (act === "cancelfact"){ if (confirm(draft && draft.editId ? "Отменить правки?" : "Отменить тренировку без сохранения?")){ draft = null; renderJournal(root); } return; }
   if (act === "finish"){ finishSession(); renderJournal(root); return; }
   if (act === "opensession"){ openSession = openSession === btn.dataset.id ? null : btn.dataset.id; renderJournal(root); return; }
+  if (act === "editsession"){
+    const s = getSessions().find((x) => x.id === btn.dataset.id);
+    if (s && Array.isArray(s.items)){ draft = sessionToDraft(s); tab = "fact"; renderJournal(root); }
+    return;
+  }
   if (act === "delsession"){ saveSessions(getSessions().filter((s) => s.id !== btn.dataset.id)); renderJournal(root); return; }
 }
 
 function onChange(e, root){
   const t = e.target;
-  if (t.dataset.act === "setactive"){ set(KEYS.active, t.value); weekIdx = 0; dayIdx = 0; autoApplied = false; renderJournal(root); return; }
-  if (t.dataset.fact){ setEntry(t.dataset.fact, t.dataset.field, t.value); }
+  if (t.dataset.act === "setactive"){ set(KEYS.active, t.value); weekIdx = 0; dayIdx = 0; autoApplied = false; draft = null; renderJournal(root); return; }
+  if (t.dataset.it != null && draft){ setItemField(t); }
 }
 function onInput(e, root){
   const t = e.target;
-  if (t.dataset.bw != null && draft){ draft.bw = t.value; return; }
-  if (t.dataset.endtime != null && draft){ draft.endHHMM = t.value; liveDur(root); return; }
-  if (t.dataset.fact && (t.dataset.field === "w" || t.dataset.field === "reps" || t.dataset.field === "note")){
-    setEntry(t.dataset.fact, t.dataset.field, t.value);
-  }
+  if (!draft) return;
+  if (t.dataset.bw != null){ draft.bw = t.value; return; }
+  if (t.dataset.starttime != null){ const ts = hhmmToTs(t.value, draft.start || Date.now()); if (ts) draft.start = ts; liveDur(root); return; }
+  if (t.dataset.endtime != null){ draft.endHHMM = t.value; liveDur(root); return; }
+  if (t.dataset.it != null){ setItemField(t); }
+}
+
+function setItemField(t){
+  const it = Number(t.dataset.it), si = Number(t.dataset.si);
+  if (draft.items[it] && draft.items[it].sets[si]) draft.items[it].sets[si][t.dataset.field] = t.value;
 }
 
 function liveDur(root){
@@ -347,36 +459,30 @@ function liveDur(root){
   el.textContent = fmtDuration(durationMin(draft.start, end));
 }
 
-function setEntry(id, field, value){
-  if (!draft) return;
-  const rec = draft.entries[id] || (draft.entries[id] = {});
-  if (value === "" || value == null) delete rec[field]; else rec[field] = value;
-}
-
 function finishSession(){
   if (!draft) return;
-  const program = getPrograms().find((p) => p.id === draft.programId);
+  const items = finalizeItems(draft.items);
   const end = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
   const bw = parseNum(draft.bw);
-  const session = {
-    id: "s" + Date.now(), ts: Date.now(),
-    programId: draft.programId,
-    programName: program ? program.name : "программа",
-    week: draft.week,
-    day: draft.day,
+  const base = {
+    programId: draft.programId, programName: draft.programName,
+    week: draft.week, day: draft.day,
     bw: bw > 0 ? bw : null,
-    start: draft.start || null,
-    end: end || null,
-    durationMin: durationMin(draft.start, end),
-    entries: draft.entries,
-    volume: sessionVolume(draft.entries),
+    start: draft.start || null, end: end || null, durationMin: durationMin(draft.start, end),
+    items, volume: itemsVolume(items),
   };
   const list = getSessions();
-  list.unshift(session);
-  if (list.length > 200) list.length = 200;
-  saveSessions(list);
-  if (bw > 0) set(KEYS.weight, addWeightEntry(get(KEYS.weight, []), bw, end || Date.now()));   // вес тела → в профиль
+  if (draft.editId){
+    const i = list.findIndex((s) => s.id === draft.editId);
+    if (i >= 0) list[i] = { ...list[i], ...base };
+    saveSessions(list);
+  } else {
+    list.unshift({ id: "s" + Date.now(), ts: Date.now(), ...base });
+    if (list.length > 200) list.length = 200;
+    saveSessions(list);
+    if (bw > 0) set(KEYS.weight, addWeightEntry(get(KEYS.weight, []), bw, end || Date.now()));   // вес тела → в профиль
+  }
   draft = null;
-  autoApplied = false;   // следующий рендер укажет на новую «следующую» тренировку
+  autoApplied = false;
   tab = "history";
 }

@@ -279,17 +279,29 @@ button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a
 .exacc{font-size:.82rem; color:var(--muted); margin-top:8px}
 .pills--day{margin-top:-4px}
 .pills--day .pill__n{font-size:.82rem}
+.pill--add{color:var(--muted); border-style:dashed; align-self:center}
+.ppday__box{display:flex; flex-direction:column; gap:8px}
 
 /* ── Журнал: «следующая тренировка» + панель тренировки (вес тела, тайминг) ── */
 .nexttrain{margin:0 0 6px}
 .nexttrain b{color:var(--accent)}
-.wsess{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; display:flex; flex-direction:column; gap:10px}
-.wsess .ff{max-width:220px}
-.wtime{display:flex; flex-wrap:wrap; align-items:center; gap:14px; font-size:.9rem}
-.wtime b{font-variant-numeric:tabular-nums}
-.wtime__end{display:flex; align-items:center; gap:6px}
-.wtime__end input{padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); font:600 .9rem/1 inherit}
-.wsess__hint{margin:0; font-size:.78rem}
+.wsess{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px}
+.wsess__row{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+.wsess__row input{width:100%; min-width:0; padding:8px 9px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); font:600 .9rem/1 inherit}
+.wdur{margin-top:10px; font-size:.85rem}
+.wdur b{color:var(--text); font-variant-numeric:tabular-nums}
+
+/* ── Журнал ФАКТ: блоки (основной/подсобка) и аккордеон упражнений ── */
+.exgroup__lbl{font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:14px 2px 8px}
+.exgroup__lbl--acc{color:var(--accent)}
+.exitem{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:12px; margin-bottom:8px; overflow:hidden}
+.exhead{width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; background:transparent; border:0; color:var(--text); cursor:pointer; text-align:left}
+.exhead__name{font-weight:600}
+.exhead--main .exhead__name{font-weight:700}
+.exhead__meta{font-size:.8rem; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums}
+.exhead__chev{color:var(--accent)}
+.exitem__body{padding:0 12px 12px}
+.fset__row2--acc{grid-template-columns:1fr}
 
 /* ── Отчёты ── */
 .rep-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--gap); margin-bottom:14px}

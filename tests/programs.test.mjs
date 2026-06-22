@@ -60,7 +60,8 @@ eq(validProgram({ name: "X", weeks: [{ days: [{ name: "Д1", exercises: [] }] }]
 // пустая программа «с нуля»
 const bl = blankProgram();
 eq([bl.discipline, bl.weeks.length, bl.weeks[0].days.length, bl.weeks[0].days[0].exercises.length],
-   ["pl", 1, 1, 1], "пустая: pl, 1 нед, 1 день, 1 упр");
+   ["pl", 1, 3, 1], "пустая: pl, 1 нед, 3 дня (сплит), 1 упр в дне");
+eq(bl.weeks[0].days.map((d) => d.exercises[0].key), ["squat", "bench", "deadlift"], "пустая: движение на день");
 
 // миграция старого формата (type/lift, weeks[{sets}]) → новый
 const oldProg = { id: "old1", name: "Старая", type: "triathlon", lift: null, weeks: [ { kind: "средняя", sets: [ { pct: 70, reps: 5 }, { pct: 80, reps: 3 } ] } ] };
