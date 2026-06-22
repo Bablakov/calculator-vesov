@@ -1,24 +1,29 @@
-// Раздел «Журнал»: ПЛАН (просмотр программы) + ФАКТ (дневник) + история тренировок.
+// Раздел «Журнал»: ПЛАН (просмотр) + ФАКТ (дневник) + история тренировок.
+// Навигация по неделям и дням программы.
 import { get, set, KEYS } from "./store.js";
 import { LIFT_BY_KEY, QUALITY } from "./config.js";
 import { ERRORS } from "./content.js";
-import { liftsForType, getPrograms } from "./programs.js";
-import { parseNum, fmt, plateOptions, fmtDateTime, escapeAttr, escapeHtml } from "./util.js";
+import { getPrograms } from "./programs.js";
+import { parseNum, round1, round2_5, fmt, plateOptions, fmtDateTime, escapeAttr, escapeHtml } from "./util.js";
 
 /* ───── Чистая логика (покрыта тестами) ───── */
 
-// План на неделю: для каждого упражнения программы — подходы с весом от 1ПМ.
-export function planForWeek(program, maxes, weekIndex){
+// План на день: для каждого упражнения дня — подходы с весом от 1ПМ + подсобки.
+export function planForDay(program, maxes, weekIndex, dayIndex){
   const week = program.weeks[weekIndex];
-  if (!week) return [];
-  return liftsForType(program.type, program.lift).map((key) => {
-    const max = Number(maxes[key]) || 0;
+  if (!week || !Array.isArray(week.days)) return [];
+  const day = week.days[dayIndex];
+  if (!day) return [];
+  return day.exercises.map((ex) => {
+    const lift = LIFT_BY_KEY[ex.key];
+    const max = Number(maxes[ex.key]) || 0;
     return {
-      key, name: LIFT_BY_KEY[key].name, accent: LIFT_BY_KEY[key].accent,
-      sets: week.sets.map((s, si) => {
+      key: ex.key, name: lift ? lift.name : ex.key, accent: lift ? lift.accent : "#8891a6",
+      sets: ex.sets.map((s, si) => {
         const raw = max * s.pct / 100;
-        return { si, pct: s.pct, reps: s.reps, exact: max > 0 ? Math.round(raw * 10) / 10 : 0, plate: max > 0 ? Math.round(raw / 2.5) * 2.5 : 0 };
+        return { si, pct: s.pct, reps: s.reps, exact: max > 0 ? round1(raw) : 0, plate: max > 0 ? round2_5(raw) : 0 };
       }),
+      acc: (ex.acc || []).map((a) => ({ name: a.name, sets: a.sets, reps: a.reps })),
     };
   });
 }
@@ -43,7 +48,8 @@ function saveSessions(list){ set(KEYS.sessions, list); }
 /* ───── Состояние UI ───── */
 let tab = "plan";          // plan | fact | history
 let weekIdx = 0;
-let draft = null;          // активная тренировка: { programId, week, entries }
+let dayIdx = 0;
+let draft = null;          // активная тренировка: { programId, week, day, entries }
 let openSession = null;    // раскрытая запись истории
 
 export function initJournal(root){
@@ -69,6 +75,12 @@ function maxesNow(){
   return m;
 }
 
+function dayName(program, wi, di){
+  const w = program.weeks[wi];
+  const d = w && w.days ? w.days[di] : null;
+  return d && d.name ? d.name : "День " + (di + 1);
+}
+
 export function renderJournal(root){
   const program = activeProgram();
   if (!program){
@@ -77,6 +89,8 @@ export function renderJournal(root){
     return;
   }
   if (weekIdx >= program.weeks.length) weekIdx = 0;
+  const days = program.weeks[weekIdx] && program.weeks[weekIdx].days ? program.weeks[weekIdx].days.length : 0;
+  if (dayIdx >= days) dayIdx = 0;
 
   const programs = getPrograms();
   const sel = '<label class="pf"><span>Программа</span><select data-act="setactive">' +
@@ -106,12 +120,27 @@ function weekPills(program){
     '</button>').join("") + '</div>';
 }
 
+function dayPills(program){
+  const week = program.weeks[weekIdx];
+  if (!week || !week.days) return "";
+  return '<div class="pills pills--day">' + week.days.map((d, i) =>
+    '<button type="button" class="pill' + (i === dayIdx ? " is-active" : "") + '" data-act="day" data-di="' + i + '">' +
+      '<span class="pill__n">' + escapeHtml(d.name || ("День " + (i + 1))) + '</span>' +
+    '</button>').join("") + '</div>';
+}
+
+function accList(acc){
+  if (!acc || !acc.length) return "";
+  return '<div class="exacc">Подсобки: ' + acc.map((a) =>
+    escapeHtml(a.name) + ' ' + escapeHtml(String(a.sets)) + '×' + escapeHtml(String(a.reps))).join("; ") + '</div>';
+}
+
 /* ───── ПЛАН ───── */
 function planBody(program){
-  const plan = planForWeek(program, maxesNow(), weekIdx);
+  const plan = planForDay(program, maxesNow(), weekIdx, dayIdx);
   const body = plan.map((ex) =>
     '<div class="progex" style="--accent:' + ex.accent + '">' +
-      '<div class="progex__name">' + ex.name + '</div>' +
+      '<div class="progex__name">' + escapeHtml(ex.name) + '</div>' +
       '<ol class="psets">' + ex.sets.map((s) =>
         '<li class="pset">' +
           '<span class="pset__pct">' + s.pct + '%</span>' +
@@ -119,33 +148,36 @@ function planBody(program){
           (s.exact && s.plate !== s.exact ? '<span class="pset__plate">≈ ' + fmt(s.plate) + '</span>' : '<span class="pset__plate"></span>') +
           '<span class="pset__reps">' + (s.reps === "макс" ? "макс" : s.reps + " раз") + '</span>' +
         '</li>').join("") + '</ol>' +
+      accList(ex.acc) +
     '</div>').join("");
-  return weekPills(program) + '<div class="prog">' + body + '</div>';
+  return weekPills(program) + dayPills(program) +
+    '<div class="prog">' + (body || '<p class="muted">В этом дне нет упражнений.</p>') + '</div>';
 }
 
 /* ───── ФАКТ ───── */
 function factBody(program){
   const isActive = draft && draft.programId === program.id;
   if (!isActive){
-    return weekPills(program) +
+    return weekPills(program) + dayPills(program) +
       '<div class="startbox">' +
-        '<p class="muted">Тренировка по программе «' + escapeHtml(program.name) + '», неделя ' + (weekIdx + 1) + '.</p>' +
+        '<p class="muted">«' + escapeHtml(program.name) + '» · неделя ' + (weekIdx + 1) + ' · ' + escapeHtml(dayName(program, weekIdx, dayIdx)) + '.</p>' +
         '<button class="primary" data-act="start">▶ Начать тренировку</button>' +
       '</div>';
   }
-  const plan = planForWeek(program, maxesNow(), draft.week);
+  const plan = planForDay(program, maxesNow(), draft.week, draft.day);
   const errOptsFor = (key) => '<option value="">ошибка…</option>' +
     (ERRORS[key] || []).map((er) => '<option value="' + er.id + '">' + er.name + '</option>').join("");
   const qOpts = '<option value="">оценка</option>' + QUALITY.map((q, i) => '<option value="' + (i + 1) + '">' + (i + 1) + ' — ' + q + '</option>').join("");
 
   const blocks = plan.map((ex) =>
     '<div class="progex" style="--accent:' + ex.accent + '">' +
-      '<div class="progex__name">' + ex.name + '</div>' +
+      '<div class="progex__name">' + escapeHtml(ex.name) + '</div>' +
       ex.sets.map((s) => factSet(ex.key, s, qOpts, errOptsFor(ex.key))).join("") +
+      accList(ex.acc) +
     '</div>').join("");
 
-  return '<div class="factbar">Неделя ' + (draft.week + 1) + ' · программа «' + escapeHtml(program.name) + '»</div>' +
-    '<div class="prog">' + blocks + '</div>' +
+  return '<div class="factbar">Неделя ' + (draft.week + 1) + ' · ' + escapeHtml(dayName(program, draft.week, draft.day)) + ' · «' + escapeHtml(program.name) + '»</div>' +
+    '<div class="prog">' + (blocks || '<p class="muted">В этом дне нет упражнений.</p>') + '</div>' +
     '<div class="toolbar" style="margin-top:14px">' +
       '<button class="primary" data-act="finish">✓ Завершить тренировку</button>' +
       '<button data-act="cancelfact">Отменить</button>' +
@@ -191,9 +223,10 @@ function historyBody(){
           (e.note ? ' · «' + escapeHtml(e.note) + '»' : '') + '</div>';
       }).join("") + '</div>';
     }
+    const where = 'неделя ' + (s.week + 1) + (s.day != null ? ' · день ' + (s.day + 1) : '');
     return '<div class="srow">' +
       '<div class="srow__head" data-act="opensession" data-id="' + s.id + '">' +
-        '<div><b>' + escapeHtml(s.programName) + '</b> · неделя ' + (s.week + 1) + '</div>' +
+        '<div><b>' + escapeHtml(s.programName) + '</b> · ' + where + '</div>' +
         '<div class="srow__meta">' + fmtDateTime(s.ts) + ' · Σ ' + fmt(s.volume) + ' кг</div>' +
       '</div>' + detail +
       '<div class="srow__act"><button class="hbtn hbtn--del" data-act="delsession" data-id="' + s.id + '">Удалить</button></div>' +
@@ -213,10 +246,11 @@ function onClick(e, root){
   }
   const act = btn.dataset.act;
   if (act === "tab"){ tab = btn.dataset.tab; renderJournal(root); return; }
-  if (act === "week"){ weekIdx = Number(btn.dataset.wi); renderJournal(root); return; }
+  if (act === "week"){ weekIdx = Number(btn.dataset.wi); dayIdx = 0; renderJournal(root); return; }
+  if (act === "day"){ dayIdx = Number(btn.dataset.di); renderJournal(root); return; }
   if (act === "start"){
     const p = activeProgram();
-    draft = { programId: p.id, week: weekIdx, entries: {} };
+    draft = { programId: p.id, week: weekIdx, day: dayIdx, entries: {} };
     renderJournal(root); return;
   }
   if (act === "cancelfact"){ if (confirm("Отменить тренировку без сохранения?")){ draft = null; renderJournal(root); } return; }
@@ -227,7 +261,7 @@ function onClick(e, root){
 
 function onChange(e, root){
   const t = e.target;
-  if (t.dataset.act === "setactive"){ set(KEYS.active, t.value); weekIdx = 0; renderJournal(root); return; }
+  if (t.dataset.act === "setactive"){ set(KEYS.active, t.value); weekIdx = 0; dayIdx = 0; renderJournal(root); return; }
   if (t.dataset.fact){ setEntry(t.dataset.fact, t.dataset.field, t.value); }
 }
 function onInput(e){
@@ -251,6 +285,7 @@ function finishSession(){
     programId: draft.programId,
     programName: program ? program.name : "программа",
     week: draft.week,
+    day: draft.day,
     entries: draft.entries,
     volume: sessionVolume(draft.entries),
   };

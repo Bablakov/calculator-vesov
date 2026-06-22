@@ -239,6 +239,47 @@ button.primary{background:var(--accent); border-color:transparent; color:#1a0f0a
 .prob__list{display:flex; flex-wrap:wrap; gap:6px}
 .tagacc{font-size:.82rem; background:var(--panel2); border:1px solid var(--border); border-radius:999px; padding:5px 10px; color:var(--text)}
 
+/* ── Программы: мастер выбора (уровень → дисциплина → упор) ── */
+.wlbl{margin:6px 2px 12px}
+.wcrumb{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px}
+.wcrumb span{font-size:.78rem; color:var(--muted); background:var(--panel2); border:1px solid var(--border); border-radius:999px; padding:4px 10px}
+.wopts{display:flex; flex-direction:column; gap:10px; margin-bottom:14px}
+.wopt{display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-align:left; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text); cursor:pointer}
+.wopt:hover{border-color:var(--accent)}
+.wopt b{font-size:1rem}
+.wopt span{font-size:.82rem; color:var(--muted)}
+
+/* ── Программы: превью шаблона ── */
+.ppreview{display:flex; flex-direction:column; gap:12px}
+.ppweek{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px}
+.ppweek__h{font-weight:700; margin-bottom:10px}
+.ppday{margin:0 0 10px; padding-left:10px; border-left:2px solid var(--border)}
+.ppday__h{font-size:.8rem; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em}
+.ppex{border-left:3px solid var(--accent); padding:4px 0 6px 10px; margin-bottom:8px}
+.ppex__name{font-weight:600}
+.ppsets{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; font-variant-numeric:tabular-nums}
+.ppset{font-size:.84rem; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:3px 8px}
+.ppacc{font-size:.8rem; color:var(--muted); margin-top:5px}
+
+/* ── Конструктор: дни / упражнения / подсобки ── */
+.cmeta{color:var(--muted); font-size:.85rem; margin:8px 2px 4px}
+.day{background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:10px; margin:10px 0}
+.day__head{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+.day__name{flex:1; min-width:0; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); font:600 .9rem/1 inherit}
+.ex{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:8px}
+.ex__head{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+.ex__head select{flex:1; min-width:0; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); font:600 .9rem/1 inherit}
+.ex__sets{display:flex; flex-direction:column; gap:6px}
+.ex__acc{margin-top:8px; padding-top:8px; border-top:1px dashed var(--border)}
+.ex__acclbl{font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px}
+.accr{display:flex; align-items:center; gap:6px; margin-bottom:6px}
+.accr input{min-width:0; padding:7px 9px; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); font:600 .88rem/1 inherit}
+.accr__name{flex:1}
+.accr__n{width:62px; flex-shrink:0}
+.exacc{font-size:.82rem; color:var(--muted); margin-top:8px}
+.pills--day{margin-top:-4px}
+.pills--day .pill__n{font-size:.82rem}
+
 footer{margin-top:24px; color:var(--muted); font-size:.78rem; text-align:center}
 
 @media (max-width:560px){
