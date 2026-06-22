@@ -1,6 +1,6 @@
 // Тесты логики профиля: длительность тренировки, история веса, инициалы.
 import { eq } from "./_assert.mjs";
-import { computeDuration, fmtDuration, addWeightEntry, initials } from "../js/profile.js";
+import { computeDuration, fmtDuration, addWeightEntry, initials, ageFromBirth } from "../js/profile.js";
 
 console.log("profile:");
 eq(computeDuration("10:00", "11:30"), 90, "длительность 1:30 = 90 мин");
@@ -21,3 +21,10 @@ eq(after[0].kg, 90, "новая запись сверху");
 
 eq(initials({ first: "Иван", last: "Петров" }), "ИП", "инициалы ИП");
 eq(initials({}), "🏋", "инициалы fallback");
+
+const NOW = new Date(2026, 5, 22).getTime();   // 22 июня 2026, локальное
+eq(ageFromBirth("2000-01-01", NOW), 26, "возраст: др был в этом году → 26");
+eq(ageFromBirth("2000-12-31", NOW), 25, "возраст: др ещё не наступил → 25");
+eq(ageFromBirth("2026-06-22", NOW), 0, "возраст: родился сегодня → 0");
+eq(ageFromBirth("", NOW), null, "пустая дата → null");
+eq(ageFromBirth("abc", NOW), null, "мусор → null");

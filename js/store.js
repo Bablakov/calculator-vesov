@@ -26,4 +26,8 @@ export const KEYS = {
   active:   "pct.active.v1",      // id активной программы (для журнала)
   sessions: "pct.sessions.v1",    // история тренировок (ФАКТ): [ session ]
   accCustom:"pct.acc.custom.v1",  // свои подсобки: [ { id, name, cat } ]
+  // Админ-правки контента (переопределяют встроенные дефолты; null = используется дефолт):
+  admErrors: "pct.admin.errors.v1",   // ERRORS (тексты типовых ошибок)
+  admCatalog:"pct.admin.catalog.v1",  // CATALOG (каталог подсобок)
+  admFix:    "pct.admin.fix.v1",      // PROBLEM_FIX (связи «проблема → подсобки»)
 };

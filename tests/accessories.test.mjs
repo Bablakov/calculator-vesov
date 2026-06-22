@@ -1,7 +1,7 @@
 // Тест подсобок: у каждой типовой ошибки есть подобранные подсобки.
 import { eq } from "./_assert.mjs";
 import { ERRORS } from "../js/content.js";
-import { PROBLEM_FIX, CATALOG } from "../js/accessories.js";
+import { PROBLEM_FIX, CATALOG } from "../js/accessorydata.js";
 
 console.log("accessories:");
 

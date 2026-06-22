@@ -1,10 +1,12 @@
 // Раздел «Журнал»: ПЛАН (просмотр) + ФАКТ (дневник) + история тренировок.
-// Навигация по неделям и дням программы.
+// Навигация по неделям и дням; автопрогрессия (какая тренировка сейчас);
+// вес тела и тайминг — внутри самой тренировки.
 import { get, set, KEYS } from "./store.js";
 import { LIFT_BY_KEY, QUALITY } from "./config.js";
-import { ERRORS } from "./content.js";
+import { getErrors } from "./contentstore.js";
 import { getPrograms } from "./programs.js";
-import { parseNum, round1, round2_5, fmt, plateOptions, fmtDateTime, escapeAttr, escapeHtml } from "./util.js";
+import { fmtDuration, addWeightEntry } from "./profile.js";
+import { parseNum, fmt, plateOptions, fmtDateTime, escapeAttr, escapeHtml } from "./util.js";
 
 /* ───── Чистая логика (покрыта тестами) ───── */
 
@@ -21,7 +23,7 @@ export function planForDay(program, maxes, weekIndex, dayIndex){
       key: ex.key, name: lift ? lift.name : ex.key, accent: lift ? lift.accent : "#8891a6",
       sets: ex.sets.map((s, si) => {
         const raw = max * s.pct / 100;
-        return { si, pct: s.pct, reps: s.reps, exact: max > 0 ? round1(raw) : 0, plate: max > 0 ? round2_5(raw) : 0 };
+        return { si, pct: s.pct, reps: s.reps, exact: max > 0 ? Math.round(raw * 10) / 10 : 0, plate: max > 0 ? Math.round(raw / 2.5) * 2.5 : 0 };
       }),
       acc: (ex.acc || []).map((a) => ({ name: a.name, sets: a.sets, reps: a.reps })),
     };
@@ -29,6 +31,29 @@ export function planForDay(program, maxes, weekIndex, dayIndex){
 }
 
 export function factId(key, si){ return key + "." + si; }
+
+// Все «слоты» программы по порядку: [{week, day}, …] — для прогрессии.
+export function flattenSlots(program){
+  const slots = [];
+  (program.weeks || []).forEach((w, wi) => (w.days || []).forEach((d, di) => slots.push({ week: wi, day: di })));
+  return slots;
+}
+
+// Следующая тренировка по числу завершённых для этой программы.
+export function nextSlot(program, sessions){
+  const slots = flattenSlots(program);
+  if (!slots.length) return { week: 0, day: 0, index: 0, total: 0, cycle: 0 };
+  const done = (sessions || []).filter((s) => s.programId === program.id).length;
+  const pos = done % slots.length;
+  return { week: slots[pos].week, day: slots[pos].day, index: done, total: slots.length, cycle: Math.floor(done / slots.length) };
+}
+
+// Длительность тренировки в минутах из меток времени.
+export function durationMin(startTs, endTs){
+  if (!startTs || !endTs) return null;
+  const m = Math.round((endTs - startTs) / 60000);
+  return m >= 0 ? m : null;
+}
 
 // Объём тренировки: Σ (факт.вес × факт.повторы) по заполненным подходам, кг.
 export function sessionVolume(entries){
@@ -41,21 +66,42 @@ export function sessionVolume(entries){
   return Math.round(kg);
 }
 
+/* ───── Время ───── */
+function tsToHHMM(ts){ const d = new Date(ts); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function hhmmToTs(hhmm, baseTs){
+  if (!hhmm) return null;
+  const [h, m] = String(hhmm).split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  const d = new Date(baseTs || Date.now()); d.setHours(h, m, 0, 0);
+  let ts = d.getTime();
+  if (baseTs && ts < baseTs) ts += 24 * 3600 * 1000;   // конец за полночь
+  return ts;
+}
+
 /* ───── Хранение ───── */
 function getSessions(){ return get(KEYS.sessions, []); }
 function saveSessions(list){ set(KEYS.sessions, list); }
+
+function lastBodyweight(){
+  const w = get(KEYS.weight, []);
+  if (w.length) return w[0].kg;
+  const s = getSessions().find((x) => x.bw);
+  return s ? s.bw : "";
+}
 
 /* ───── Состояние UI ───── */
 let tab = "plan";          // plan | fact | history
 let weekIdx = 0;
 let dayIdx = 0;
-let draft = null;          // активная тренировка: { programId, week, day, entries }
-let openSession = null;    // раскрытая запись истории
+let autoApplied = false;   // авто-выбор недели/дня по прогрессии (один раз, до ручной навигации)
+let draft = null;          // активная тренировка: { programId, week, day, bw, start, endHHMM, entries }
+let openSession = null;
 
 export function initJournal(root){
+  autoApplied = false;
   root.addEventListener("click", (e) => onClick(e, root));
   root.addEventListener("change", (e) => onChange(e, root));
-  root.addEventListener("input", (e) => onInput(e));
+  root.addEventListener("input", (e) => onInput(e, root));
   renderJournal(root);
 }
 
@@ -87,6 +133,11 @@ export function renderJournal(root){
     root.innerHTML = '<div class="placeholder"><p>Сначала создайте программу в разделе «Программы».</p>' +
       '<a class="btn-link" href="#programs">→ К программам</a></div>';
     return;
+  }
+  // авто-выбор следующей тренировки (пока пользователь сам не переключил неделю/день)
+  if (!autoApplied){
+    const ns = nextSlot(program, getSessions());
+    weekIdx = ns.week; dayIdx = ns.day; autoApplied = true;
   }
   if (weekIdx >= program.weeks.length) weekIdx = 0;
   const days = program.weeks[weekIdx] && program.weeks[weekIdx].days ? program.weeks[weekIdx].days.length : 0;
@@ -158,15 +209,18 @@ function planBody(program){
 function factBody(program){
   const isActive = draft && draft.programId === program.id;
   if (!isActive){
+    const ns = nextSlot(program, getSessions());
     return weekPills(program) + dayPills(program) +
       '<div class="startbox">' +
-        '<p class="muted">«' + escapeHtml(program.name) + '» · неделя ' + (weekIdx + 1) + ' · ' + escapeHtml(dayName(program, weekIdx, dayIdx)) + '.</p>' +
+        '<p class="nexttrain">Следующая тренировка: <b>#' + (ns.index + 1) + '</b> · неделя ' + (weekIdx + 1) + ' · ' + escapeHtml(dayName(program, weekIdx, dayIdx)) + (ns.cycle ? ' <span class="muted">(круг ' + (ns.cycle + 1) + ')</span>' : '') + '</p>' +
+        '<p class="muted">Выбрать другую — переключите неделю/день выше.</p>' +
         '<button class="primary" data-act="start">▶ Начать тренировку</button>' +
       '</div>';
   }
   const plan = planForDay(program, maxesNow(), draft.week, draft.day);
+  const errors = getErrors();
   const errOptsFor = (key) => '<option value="">ошибка…</option>' +
-    (ERRORS[key] || []).map((er) => '<option value="' + er.id + '">' + er.name + '</option>').join("");
+    (errors[key] || []).map((er) => '<option value="' + er.id + '">' + escapeHtml(er.name) + '</option>').join("");
   const qOpts = '<option value="">оценка</option>' + QUALITY.map((q, i) => '<option value="' + (i + 1) + '">' + (i + 1) + ' — ' + q + '</option>').join("");
 
   const blocks = plan.map((ex) =>
@@ -176,7 +230,18 @@ function factBody(program){
       accList(ex.acc) +
     '</div>').join("");
 
+  const endTs = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
+
   return '<div class="factbar">Неделя ' + (draft.week + 1) + ' · ' + escapeHtml(dayName(program, draft.week, draft.day)) + ' · «' + escapeHtml(program.name) + '»</div>' +
+    '<section class="wsess">' +
+      '<label class="ff"><span>Вес тела, кг</span><input type="number" inputmode="decimal" step="0.1" min="0" data-bw value="' + escapeAttr(draft.bw) + '" placeholder="' + escapeAttr(lastBodyweight()) + '"></label>' +
+      '<div class="wtime">' +
+        '<span class="wtime__lbl">Начало <b>' + (draft.start ? tsToHHMM(draft.start) : "—") + '</b></span>' +
+        '<label class="wtime__end">Конец <input type="time" data-endtime value="' + escapeAttr(draft.endHHMM || "") + '"></label>' +
+        '<span class="wtime__dur">Длит.: <b id="factDur">' + fmtDuration(durationMin(draft.start, endTs)) + '</b></span>' +
+      '</div>' +
+      '<p class="muted wsess__hint">Конец проставится автоматически при «Завершить», если оставить пустым.</p>' +
+    '</section>' +
     '<div class="prog">' + (blocks || '<p class="muted">В этом дне нет упражнений.</p>') + '</div>' +
     '<div class="toolbar" style="margin-top:14px">' +
       '<button class="primary" data-act="finish">✓ Завершить тренировку</button>' +
@@ -208,6 +273,7 @@ function factSet(key, s, qOpts, errOpts){
 /* ───── История ───── */
 function historyBody(){
   const list = getSessions();
+  const errors = getErrors();
   if (!list.length) return '<p class="muted">Пока нет завершённых тренировок.</p>';
   return list.map((s) => {
     const open = openSession === s.id;
@@ -215,7 +281,7 @@ function historyBody(){
     if (open){
       detail = '<div class="sdetail">' + Object.keys(s.entries).map((id) => {
         const e = s.entries[id]; const key = id.split(".")[0];
-        const er = (ERRORS[key] || []).find((x) => x.id === e.err);
+        const er = (errors[key] || []).find((x) => x.id === e.err);
         return '<div class="sline">' + (LIFT_BY_KEY[key] ? LIFT_BY_KEY[key].short : key) + ': ' +
           (e.w ? fmt(Number(e.w)) + ' кг' : '—') + ' × ' + (e.reps || '—') +
           (e.q ? ' · ' + QUALITY[Number(e.q) - 1] : '') +
@@ -224,10 +290,11 @@ function historyBody(){
       }).join("") + '</div>';
     }
     const where = 'неделя ' + (s.week + 1) + (s.day != null ? ' · день ' + (s.day + 1) : '');
+    const extra = (s.durationMin != null ? ' · ' + fmtDuration(s.durationMin) : '') + (s.bw ? ' · вес ' + fmt(Number(s.bw)) + ' кг' : '');
     return '<div class="srow">' +
       '<div class="srow__head" data-act="opensession" data-id="' + s.id + '">' +
         '<div><b>' + escapeHtml(s.programName) + '</b> · ' + where + '</div>' +
-        '<div class="srow__meta">' + fmtDateTime(s.ts) + ' · Σ ' + fmt(s.volume) + ' кг</div>' +
+        '<div class="srow__meta">' + fmtDateTime(s.ts) + ' · Σ ' + fmt(s.volume) + ' кг' + extra + '</div>' +
       '</div>' + detail +
       '<div class="srow__act"><button class="hbtn hbtn--del" data-act="delsession" data-id="' + s.id + '">Удалить</button></div>' +
     '</div>';
@@ -250,7 +317,7 @@ function onClick(e, root){
   if (act === "day"){ dayIdx = Number(btn.dataset.di); renderJournal(root); return; }
   if (act === "start"){
     const p = activeProgram();
-    draft = { programId: p.id, week: weekIdx, day: dayIdx, entries: {} };
+    draft = { programId: p.id, week: weekIdx, day: dayIdx, bw: lastBodyweight(), start: Date.now(), endHHMM: "", entries: {} };
     renderJournal(root); return;
   }
   if (act === "cancelfact"){ if (confirm("Отменить тренировку без сохранения?")){ draft = null; renderJournal(root); } return; }
@@ -261,14 +328,23 @@ function onClick(e, root){
 
 function onChange(e, root){
   const t = e.target;
-  if (t.dataset.act === "setactive"){ set(KEYS.active, t.value); weekIdx = 0; dayIdx = 0; renderJournal(root); return; }
+  if (t.dataset.act === "setactive"){ set(KEYS.active, t.value); weekIdx = 0; dayIdx = 0; autoApplied = false; renderJournal(root); return; }
   if (t.dataset.fact){ setEntry(t.dataset.fact, t.dataset.field, t.value); }
 }
-function onInput(e){
+function onInput(e, root){
   const t = e.target;
+  if (t.dataset.bw != null && draft){ draft.bw = t.value; return; }
+  if (t.dataset.endtime != null && draft){ draft.endHHMM = t.value; liveDur(root); return; }
   if (t.dataset.fact && (t.dataset.field === "w" || t.dataset.field === "reps" || t.dataset.field === "note")){
     setEntry(t.dataset.fact, t.dataset.field, t.value);
   }
+}
+
+function liveDur(root){
+  if (!draft) return;
+  const el = root.querySelector("#factDur"); if (!el) return;
+  const end = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
+  el.textContent = fmtDuration(durationMin(draft.start, end));
 }
 
 function setEntry(id, field, value){
@@ -280,12 +356,18 @@ function setEntry(id, field, value){
 function finishSession(){
   if (!draft) return;
   const program = getPrograms().find((p) => p.id === draft.programId);
+  const end = draft.endHHMM ? hhmmToTs(draft.endHHMM, draft.start) : Date.now();
+  const bw = parseNum(draft.bw);
   const session = {
     id: "s" + Date.now(), ts: Date.now(),
     programId: draft.programId,
     programName: program ? program.name : "программа",
     week: draft.week,
     day: draft.day,
+    bw: bw > 0 ? bw : null,
+    start: draft.start || null,
+    end: end || null,
+    durationMin: durationMin(draft.start, end),
     entries: draft.entries,
     volume: sessionVolume(draft.entries),
   };
@@ -293,6 +375,8 @@ function finishSession(){
   list.unshift(session);
   if (list.length > 200) list.length = 200;
   saveSessions(list);
+  if (bw > 0) set(KEYS.weight, addWeightEntry(get(KEYS.weight, []), bw, end || Date.now()));   // вес тела → в профиль
   draft = null;
+  autoApplied = false;   // следующий рендер укажет на новую «следующую» тренировку
   tab = "history";
 }

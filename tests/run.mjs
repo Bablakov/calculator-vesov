@@ -4,6 +4,8 @@ import "./profile.test.mjs";
 import "./programs.test.mjs";
 import "./journal.test.mjs";
 import "./accessories.test.mjs";
+import "./reports.test.mjs";
+import "./contentstore.test.mjs";
 import { summary } from "./_assert.mjs";
 
 summary();

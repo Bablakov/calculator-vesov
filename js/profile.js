@@ -1,12 +1,12 @@
-// Профиль: личные данные + аватар, контроль веса тела, тайминг тренировки,
-// выбор дня сплита. Хранение — localStorage.
+// Профиль: ФИО, дата рождения, аватар + контроль веса тела.
+// Тайминг тренировки переехал внутрь тренировки (журнал); роль — убрана (вернётся в Фазе 2).
 import { get, set, KEYS } from "./store.js";
-import { SPLIT, LIFT_BY_KEY } from "./config.js";
 import { parseNum, round1, fmt, fmtDateTime, escapeAttr } from "./util.js";
 
 /* ───── Чистая логика (покрыта тестами) ───── */
 
 // Длительность между "HH:MM" и "HH:MM" в минутах (через полночь — корректно). null если данных нет.
+// (Оставлено для журнала/совместимости.)
 export function computeDuration(start, end){
   if (!start || !end) return null;
   const a = start.split(":").map(Number);
@@ -21,6 +21,18 @@ export function fmtDuration(mins){
   if (mins == null) return "—";
   const h = Math.floor(mins / 60), m = mins % 60;
   return (h ? h + " ч " : "") + m + " мин";
+}
+
+// Возраст по дате рождения "YYYY-MM-DD" на момент nowTs (мс). null если нет/мусор.
+export function ageFromBirth(birth, nowTs){
+  const parts = String(birth || "").split("-").map(Number);
+  if (parts.length < 3 || parts.some((n) => Number.isNaN(n))) return null;
+  const [by, bm, bd] = parts;
+  const now = new Date(nowTs);
+  let age = now.getFullYear() - by;
+  const md = (now.getMonth() + 1) - bm;
+  if (md < 0 || (md === 0 && now.getDate() < bd)) age--;
+  return age >= 0 && age < 150 ? age : null;
 }
 
 // Добавить замер веса тела; новые сверху, округление до 0,1 кг, лимит 100.
@@ -43,11 +55,6 @@ function saveProfileField(key, value){
   if (value === "" || value == null) delete p[key]; else p[key] = value;
   set(KEYS.profile, p);
 }
-function saveTimingField(key, value){
-  const t = get(KEYS.timing, {});
-  if (value === "" || value == null) delete t[key]; else t[key] = value;
-  set(KEYS.timing, t);
-}
 
 /* ───── Рендер ───── */
 export function initProfile(root){
@@ -55,33 +62,17 @@ export function initProfile(root){
 
   root.addEventListener("input", (e) => {
     const t = e.target;
-    if (t.dataset.pf) saveProfileField(t.dataset.pf, t.value);
+    if (t.dataset.pf){ saveProfileField(t.dataset.pf, t.value); if (t.dataset.pf === "birth") refreshAge(root); }
   });
 
   root.addEventListener("change", (e) => {
     const t = e.target;
     if (t.id === "avatarInput" && t.files && t.files[0]){
       readAvatar(t.files[0], (dataUrl) => { saveProfileField("avatar", dataUrl); render(root); });
-    } else if (t.dataset.tm){
-      saveTimingField(t.dataset.tm, t.value);
-      if (t.dataset.tm === "start" || t.dataset.tm === "end") refreshDuration(root);
     }
   });
 
   root.addEventListener("click", (e) => {
-    const roleBtn = e.target.closest("[data-role]");
-    if (roleBtn){ saveProfileField("role", roleBtn.dataset.role); render(root); return; }
-
-    const now = e.target.closest("[data-now]");
-    if (now){
-      const field = now.dataset.now;
-      const inp = root.querySelector('input[data-tm="' + field + '"]');
-      const val = nowHHMM();
-      if (inp) inp.value = val;
-      saveTimingField(field, val);
-      refreshDuration(root);
-      return;
-    }
     if (e.target.closest("#bwAdd")){
       const inp = root.querySelector("#bwInput");
       const kg = parseNum(inp.value);
@@ -100,18 +91,24 @@ export function initProfile(root){
   });
 }
 
-function refreshDuration(root){
-  const t = get(KEYS.timing, {});
-  const box = root.querySelector("#tmDur");
-  if (box) box.textContent = fmtDuration(computeDuration(t.start, t.end));
+function refreshAge(root){
+  const p = get(KEYS.profile, {});
+  const box = root.querySelector("#profAge");
+  if (box){ const a = ageFromBirth(p.birth, Date.now()); box.textContent = a == null ? "" : "Возраст: " + a + " " + plural(a); }
+}
+
+function plural(n){
+  const a = n % 100, b = n % 10;
+  if (a > 10 && a < 20) return "лет";
+  if (b === 1) return "год";
+  if (b >= 2 && b <= 4) return "года";
+  return "лет";
 }
 
 function render(root){
   const p = get(KEYS.profile, {});
-  const role = p.role || "athlete";
   const weights = get(KEYS.weight, []);
-  const t = get(KEYS.timing, {});
-  const dur = computeDuration(t.start, t.end);
+  const age = ageFromBirth(p.birth, Date.now());
 
   root.innerHTML =
     // Личные данные
@@ -128,47 +125,22 @@ function render(root){
           pf("Фамилия", '<input data-pf="last" value="' + escapeAttr(p.last) + '" placeholder="Фамилия">') +
           pf("Имя", '<input data-pf="first" value="' + escapeAttr(p.first) + '" placeholder="Имя">') +
           pf("Отчество", '<input data-pf="middle" value="' + escapeAttr(p.middle) + '" placeholder="необязательно">') +
-          pf("Возраст", '<input type="number" inputmode="numeric" min="0" data-pf="age" value="' + escapeAttr(p.age) + '" placeholder="лет">') +
+          pf("Дата рождения", '<input type="date" data-pf="birth" value="' + escapeAttr(p.birth) + '">') +
         '</div>' +
       '</div>' +
-    '</section>' +
-
-    // Роль (понадобится в Фазе 2)
-    '<section class="prof-card">' +
-      '<h3 class="prof-h">Роль</h3>' +
-      '<div class="role">' +
-        '<button type="button" class="role__btn' + (role !== "coach" ? " is-active" : "") + '" data-role="athlete">Атлет</button>' +
-        '<button type="button" class="role__btn' + (role === "coach" ? " is-active" : "") + '" data-role="coach">Тренер</button>' +
-      '</div>' +
-      '<p class="muted" style="margin:8px 0 0">Полное разделение тренер/атлет — в Фазе 2 (бэкенд).</p>' +
+      '<p class="muted" id="profAge" style="margin:10px 2px 0">' + (age == null ? "" : "Возраст: " + age + " " + plural(age)) + '</p>' +
     '</section>' +
 
     // Вес тела
     '<section class="prof-card">' +
       '<h3 class="prof-h">Вес тела</h3>' +
+      '<p class="muted" style="margin:-4px 0 10px">Текущий: <b>' + (weights.length ? fmt(weights[0].kg) + " кг" : "—") + '</b> · обновляется из последней тренировки, можно внести вручную.</p>' +
       '<div class="bw-add">' +
         '<input type="number" inputmode="decimal" step="0.1" min="0" id="bwInput" placeholder="вес на сегодня, напр. 85.4">' +
         '<span class="unit">кг</span>' +
         '<button class="primary" id="bwAdd">Добавить</button>' +
       '</div>' +
       '<div class="bw-list">' + weightList(weights) + '</div>' +
-    '</section>' +
-
-    // Тренировка сегодня
-    '<section class="prof-card">' +
-      '<h3 class="prof-h">Тренировка сегодня</h3>' +
-      '<div class="tm-grid">' +
-        pf("Начало", '<span class="tm-row"><input type="time" data-tm="start" value="' + escapeAttr(t.start) + '"><button type="button" class="now" data-now="start">Сейчас</button></span>') +
-        pf("Конец",  '<span class="tm-row"><input type="time" data-tm="end" value="' + escapeAttr(t.end) + '"><button type="button" class="now" data-now="end">Сейчас</button></span>') +
-      '</div>' +
-      '<div class="tm-dur">Длительность: <b id="tmDur">' + fmtDuration(dur) + '</b></div>' +
-      pf("День тренировки",
-        '<select data-tm="day"><option value="">— выберите —</option>' +
-        SPLIT.map((d, i) =>
-          '<option value="' + i + '"' + (String(t.day) === String(i) ? " selected" : "") + '>' +
-            d.day + ' · ' + d.lifts.map((k) => LIFT_BY_KEY[k].short).join(" + ") +
-          '</option>').join("") +
-        '</select>') +
     '</section>';
 }
 
@@ -177,7 +149,7 @@ function pf(label, control){
 }
 
 function weightList(list){
-  if (!list.length) return '<p class="muted">Пока нет замеров. Внесите вес и нажмите «Добавить».</p>';
+  if (!list.length) return '<p class="muted">Пока нет замеров. Внесите вес вручную или завершите тренировку с весом тела.</p>';
   return list.map((w) =>
     '<div class="bw-row">' +
       '<span class="bw-date">' + fmtDateTime(w.ts) + '</span>' +
@@ -203,9 +175,4 @@ function readAvatar(file, cb){
     img.src = reader.result;
   };
   reader.readAsDataURL(file);
-}
-
-function nowHHMM(){
-  const d = new Date();
-  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }

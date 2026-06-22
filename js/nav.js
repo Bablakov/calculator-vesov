@@ -1,5 +1,5 @@
 // Навигация между разделами по hash (#calc / #cycle / #learn).
-const VIEWS = ["calc", "programs", "journal", "accessories", "profile"];
+const VIEWS = ["calc", "programs", "journal", "reports", "accessories", "profile", "admin"];
 
 export function initNav(onChange){
   const tabs = document.getElementById("tabs");
